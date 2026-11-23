@@ -1,0 +1,48 @@
+# Sample user custom skin for Antigravity Island.
+# Copy to `~/.config/antigravity-island/skins/cyberpunk-neon-custom.toml`
+# and edits hot-reload live!
+
+id = "cyberpunk-custom"
+name = "Cyberpunk Custom"
+author = "Antigravity Community"
+description = "High-contrast synthwave HUD with segmented laser cells"
+
+[palette]
+bg = "rgba(8, 7, 20, 0.94)"
+bg_expanded = "rgba(10, 8, 24, 0.96)"
+surface = "rgba(0, 245, 212, 0.06)"
+border = "rgba(0, 245, 212, 0.36)"
+text_primary = "#ecfeff"
+text_secondary = "#a5f3fc"
+text_muted = "#67e8f9"
+accent_gemini = "#00f5d4"
+accent_claude = "#ff4ecd"
+accent_argon = "#a78bfa"
+ok_color = "#00f5d4"
+warn_color = "#fde047"
+danger_color = "#ff2a6d"
+track_bg = "rgba(0, 245, 212, 0.14)"
+
+[geometry]
+pill_radius_px = 14
+card_radius_px = 18
+border_width_px = 1.25
+blur_px = 18
+scale = 1.0
+
+[style]
+gauge = "segments" # "ring" | "bar" | "segments" | "wave"
+glow = true
+glow_intensity = 0.85
+font_family = "'SF Pro Display', 'Inter', 'PingFang SC', sans-serif"
+mono_font = "'JetBrains Mono', 'SF Mono', ui-monospace, monospace"
+animations = true
+noise_overlay = false
+
+custom_css = """
+.island-shell {
+  background-image:
+    radial-gradient(circle at 15% 0%, rgba(255, 78, 205, 0.14), transparent 45%),
+    radial-gradient(circle at 85% 100%, rgba(0, 245, 212, 0.12), transparent 50%);
+}
+"""
