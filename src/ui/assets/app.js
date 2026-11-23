@@ -625,13 +625,12 @@
         ? Math.max(132, Math.round(payload.screen?.notch_width || 164))
         : 0;
     document.documentElement.style.setProperty("--notch-gap", `${notchGap}px`);
+    $("notch-spacer").classList.toggle("hidden", notchGap === 0);
 
     const sync = payload.status || {};
     const snap = sync.snapshot || null;
     stage.dataset.health = computeHealthState(snap);
 
-    $("pill-sync-spin").classList.toggle("hidden", !sync.syncing);
-    $("btn-refresh").classList.toggle("spinning", !!sync.syncing);
     $("btn-pin").classList.toggle("active", !!payload.config?.pinned_expanded);
     $("btn-skins").classList.toggle("active", activeDrawer === "skins");
     $("btn-settings").classList.toggle("active", activeDrawer === "settings");
@@ -670,6 +669,7 @@
         });
       }
     }
+    $("pill-right").classList.toggle("hidden", rightBox.childElementCount === 0);
 
     $("pill-view").classList.toggle("hidden", expanded);
     $("expanded-view").classList.toggle("hidden", !expanded);
@@ -934,7 +934,14 @@
     post("set_pinned", { pinned: next });
   });
 
-  $("btn-refresh").addEventListener("click", () => post("refresh"));
+  let refreshFlashTimer = null;
+  $("btn-refresh").addEventListener("click", () => {
+    const btn = $("btn-refresh");
+    btn.classList.add("refresh-flash");
+    clearTimeout(refreshFlashTimer);
+    refreshFlashTimer = setTimeout(() => btn.classList.remove("refresh-flash"), 320);
+    post("refresh");
+  });
   $("btn-retry").addEventListener("click", () => post("refresh"));
   $("btn-demo-preview").addEventListener("click", () => post("set_demo", { enabled: true }));
 

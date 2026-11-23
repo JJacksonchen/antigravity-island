@@ -234,7 +234,11 @@ async fn perform_sync<F>(
 {
     state.syncing = true;
     state.demo_mode = demo_mode;
-    on_update(state.clone());
+    // Only push intermediate "syncing" state on cold startup before any snapshot exists,
+    // keeping steady-state background refreshes completely calm and jitter-free.
+    if state.snapshot.is_none() {
+        on_update(state.clone());
+    }
 
     let result: anyhow::Result<QuotaSnapshot> = if demo_mode {
         *demo_tick = demo_tick.wrapping_add(1);
