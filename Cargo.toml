@@ -1,6 +1,6 @@
 [package]
 name = "antigravity-island"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 rust-version = "1.91"
 description = "Lightweight cross-platform Rust Dynamic Island & desktop quota widget for Google Antigravity (macOS & Windows) with at-a-glance gauges and hot-reloadable custom skins"

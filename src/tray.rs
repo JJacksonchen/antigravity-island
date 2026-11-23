@@ -1,6 +1,6 @@
 //! Native macOS / Windows / Linux tray status item with live at-a-glance quota indicator.
 //!
-//! - On macOS: renders a crisp template orbital icon; avoids visual duplication while the floating
+//! - On macOS: renders a crisp Antigravity "A" arch template icon; avoids visual duplication while the floating
 //!   Island is visible (unless `always_show_menubar_text` is enabled) and automatically shows live
 //!   quota text (`G 65%/64% · C 100%`) whenever the Island is hidden.
 //! - On Windows & Linux: dynamically renders a color-coded circular progress ring icon reflecting
@@ -52,7 +52,7 @@ impl TrayController {
 
         #[cfg(target_os = "macos")]
         let tray = {
-            let icon = build_orbital_template_icon()?;
+            let icon = build_antigravity_template_icon()?;
             let title = tray_title_from_state(config, state);
             TrayIconBuilder::new()
                 .with_icon_templated(icon)
@@ -283,43 +283,104 @@ fn build_menu(
     (menu, actions)
 }
 
-/// Procedurally renders a crisp 32x32 anti-aliased Antigravity orbital template icon for macOS.
+/// Samples the authentic Antigravity "A" arch Bezier contour in normalized 0..24 coordinate space.
+fn antigravity_logo_polygon() -> Vec<(f32, f32)> {
+    type Pt = (f32, f32);
+    type CubicSeg = (Pt, Pt, Pt, Pt);
+
+    const SEGMENTS: [CubicSeg; 10] = [
+        ((12.0, 2.8), (14.8, 2.8), (16.3, 6.2), (17.6, 11.8)),
+        ((17.6, 11.8), (18.5, 15.7), (19.9, 18.2), (21.6, 19.9)),
+        ((21.6, 19.9), (22.2, 20.5), (21.8, 21.4), (20.8, 21.4)),
+        ((20.8, 21.4), (19.6, 21.4), (18.3, 20.1), (17.0, 18.0)),
+        ((17.0, 18.0), (15.5, 15.5), (14.4, 12.6), (12.0, 12.6)),
+        ((12.0, 12.6), (9.6, 12.6), (8.5, 15.5), (7.0, 18.0)),
+        ((7.0, 18.0), (5.7, 20.1), (4.4, 21.4), (3.2, 21.4)),
+        ((3.2, 21.4), (2.2, 21.4), (1.8, 20.5), (2.4, 19.9)),
+        ((2.4, 19.9), (4.1, 18.2), (5.5, 15.7), (6.4, 11.8)),
+        ((6.4, 11.8), (7.7, 6.2), (9.2, 2.8), (12.0, 2.8)),
+    ];
+
+    const STEPS: usize = 10;
+    let mut poly = Vec::with_capacity(SEGMENTS.len() * STEPS);
+    for (p0, p1, p2, p3) in SEGMENTS {
+        for i in 0..STEPS {
+            let t = (i as f32) / (STEPS as f32);
+            let u = 1.0 - t;
+            let x = u * u * u * p0.0
+                + 3.0 * u * u * t * p1.0
+                + 3.0 * u * t * t * p2.0
+                + t * t * t * p3.0;
+            let y = u * u * u * p0.1
+                + 3.0 * u * u * t * p1.1
+                + 3.0 * u * t * t * p2.1
+                + t * t * t * p3.1;
+            poly.push((x, y));
+        }
+    }
+    poly
+}
+
+fn point_in_polygon(x: f32, y: f32, poly: &[(f32, f32)]) -> bool {
+    let mut inside = false;
+    let n = poly.len();
+    for i in 0..n {
+        let (x1, y1) = poly[i];
+        let (x2, y2) = poly[(i + 1) % n];
+        if ((y1 > y) != (y2 > y)) && (x < (x2 - x1) * (y - y1) / (y2 - y1) + x1) {
+            inside = !inside;
+        }
+    }
+    inside
+}
+
+/// 4x4 supersampled coverage for the Antigravity "A" arch mapped around `(cx, cy)` with span `box_size`.
+fn antigravity_logo_coverage(
+    px: f32,
+    py: f32,
+    cx: f32,
+    cy: f32,
+    box_size: f32,
+    poly: &[(f32, f32)],
+) -> f32 {
+    const OFFSETS: [f32; 4] = [0.125, 0.375, 0.625, 0.875];
+    let mut hits = 0u32;
+    for &oy in &OFFSETS {
+        for &ox in &OFFSETS {
+            let u = 12.0 + ((px + ox - cx) / box_size) * 24.0;
+            let v = 12.0 + ((py + oy - cy) / box_size) * 24.0;
+            if point_in_polygon(u, v, poly) {
+                hits += 1;
+            }
+        }
+    }
+    (hits as f32) / 16.0
+}
+
+/// Procedurally renders a crisp 32x32 anti-aliased Antigravity "A" arch template icon for macOS.
 #[cfg(target_os = "macos")]
-fn build_orbital_template_icon() -> anyhow::Result<Icon> {
+fn build_antigravity_template_icon() -> anyhow::Result<Icon> {
     let size = 32usize;
     let mut rgba = vec![0u8; size * size * 4];
-    let center = (size as f32 - 1.0) * 0.5;
+    let poly = antigravity_logo_polygon();
+    let center = (size as f32) * 0.5;
 
     for y in 0..size {
         for x in 0..size {
-            let dx = x as f32 - center;
-            let dy = y as f32 - center;
-            let dist = (dx * dx + dy * dy).sqrt();
-
-            let ring_diff = (dist - 10.8).abs();
-            let mut alpha = (1.35 - ring_diff).clamp(0.0, 1.0);
-
-            let sx = dx - 4.2;
-            let sy = dy + 4.2;
-            let sdist = (sx * sx + sy * sy).sqrt();
-            let dot_alpha = (3.1 - sdist).clamp(0.0, 1.0);
-
-            let core_alpha = (3.4 - dist).clamp(0.0, 1.0);
-
-            alpha = alpha.max(dot_alpha).max(core_alpha);
+            let alpha = antigravity_logo_coverage(x as f32, y as f32, center, center, 25.5, &poly);
             let idx = (y * size + x) * 4;
             rgba[idx] = 0;
             rgba[idx + 1] = 0;
             rgba[idx + 2] = 0;
-            rgba[idx + 3] = (alpha * 255.0).round() as u8;
+            rgba[idx + 3] = (alpha * 255.0).round().clamp(0.0, 255.0) as u8;
         }
     }
 
     Ok(Icon::from_rgba(rgba, size as u32, size as u32)?)
 }
 
-/// Renders a live 32x32 colored circular progress gauge icon for Windows & Linux system trays
-/// so users can gauge remaining quota with a single glance at the taskbar.
+/// Renders a live 32x32 colored circular progress gauge icon with the Antigravity "A" arch emblem
+/// for Windows & Linux system trays so users can gauge remaining quota with a single glance.
 #[cfg(not(target_os = "macos"))]
 fn build_live_quota_ring_icon(config: &AppConfig, state: &SyncState) -> anyhow::Result<Icon> {
     let pct_opt = state
@@ -338,6 +399,7 @@ fn build_live_quota_ring_icon(config: &AppConfig, state: &SyncState) -> anyhow::
     let size = 32usize;
     let mut rgba = vec![0u8; size * size * 4];
     let center = (size as f32 - 1.0) * 0.5;
+    let poly = antigravity_logo_polygon();
 
     for y in 0..size {
         for x in 0..size {
@@ -345,13 +407,13 @@ fn build_live_quota_ring_icon(config: &AppConfig, state: &SyncState) -> anyhow::
             let dy = y as f32 - center;
             let dist = (dx * dx + dy * dy).sqrt();
 
-            let disc_alpha = (14.8 - dist).clamp(0.0, 1.0) * 0.84;
+            let disc_alpha = (15.2 - dist).clamp(0.0, 1.0) * 0.88;
             let mut out_r = 14.0f32;
             let mut out_g = 17.0f32;
             let mut out_b = 24.0f32;
             let mut out_a = disc_alpha;
 
-            let ring_cov = (2.1 - (dist - 10.6).abs()).clamp(0.0, 1.0);
+            let ring_cov = (1.9 - (dist - 12.6).abs()).clamp(0.0, 1.0);
             if ring_cov > 0.0 {
                 let angle =
                     (dx.atan2(-dy).rem_euclid(std::f32::consts::TAU)) / std::f32::consts::TAU;
@@ -367,12 +429,19 @@ fn build_live_quota_ring_icon(config: &AppConfig, state: &SyncState) -> anyhow::
                 out_a = out_a.max(ra);
             }
 
-            let dot_cov = (3.4 - dist).clamp(0.0, 1.0);
-            if dot_cov > 0.0 {
-                out_r = (r as f32) * dot_cov + out_r * (1.0 - dot_cov);
-                out_g = (g as f32) * dot_cov + out_g * (1.0 - dot_cov);
-                out_b = (b as f32) * dot_cov + out_b * (1.0 - dot_cov);
-                out_a = out_a.max(dot_cov);
+            let logo_cov = antigravity_logo_coverage(
+                x as f32,
+                y as f32,
+                center + 0.5,
+                center + 0.8,
+                15.0,
+                &poly,
+            );
+            if logo_cov > 0.0 {
+                out_r = 248.0 * logo_cov + out_r * (1.0 - logo_cov);
+                out_g = 250.0 * logo_cov + out_g * (1.0 - logo_cov);
+                out_b = 252.0 * logo_cov + out_b * (1.0 - logo_cov);
+                out_a = out_a.max(logo_cov);
             }
 
             let idx = (y * size + x) * 4;

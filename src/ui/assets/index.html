@@ -16,10 +16,21 @@
         <div class="pill-left">
           <span class="status-dot" id="pill-dot"></span>
           <span class="brand-glyph" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none">
-              <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8" stroke-dasharray="40 14" stroke-linecap="round"/>
-              <circle cx="12" cy="12" r="2.6" fill="currentColor"/>
-              <circle cx="17.8" cy="6.2" r="1.7" fill="currentColor"/>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
+              <defs>
+                <linearGradient id="ag-grad-pill" x1="3" y1="21" x2="18" y2="3" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#3b82f6"/>
+                  <stop offset="46%" stop-color="#34a853"/>
+                  <stop offset="76%" stop-color="#fbbc04"/>
+                  <stop offset="100%" stop-color="#ea4335"/>
+                </linearGradient>
+                <radialGradient id="ag-blue-pill" cx="50%" cy="76%" r="54%">
+                  <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.95"/>
+                  <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+                </radialGradient>
+              </defs>
+              <path d="M12 2.8C14.8 2.8 16.3 6.2 17.6 11.8C18.5 15.7 19.9 18.2 21.6 19.9C22.2 20.5 21.8 21.4 20.8 21.4C19.6 21.4 18.3 20.1 17 18C15.5 15.5 14.4 12.6 12 12.6C9.6 12.6 8.5 15.5 7 18C5.7 20.1 4.4 21.4 3.2 21.4C2.2 21.4 1.8 20.5 2.4 19.9C4.1 18.2 5.5 15.7 6.4 11.8C7.7 6.2 9.2 2.8 12 2.8Z" fill="url(#ag-grad-pill)"/>
+              <path d="M12 2.8C14.8 2.8 16.3 6.2 17.6 11.8C18.5 15.7 19.9 18.2 21.6 19.9C22.2 20.5 21.8 21.4 20.8 21.4C19.6 21.4 18.3 20.1 17 18C15.5 15.5 14.4 12.6 12 12.6C9.6 12.6 8.5 15.5 7 18C5.7 20.1 4.4 21.4 3.2 21.4C2.2 21.4 1.8 20.5 2.4 19.9C4.1 18.2 5.5 15.7 6.4 11.8C7.7 6.2 9.2 2.8 12 2.8Z" fill="url(#ag-blue-pill)"/>
             </svg>
           </span>
           <div id="pill-metrics-left" class="pill-metrics"></div>
@@ -40,10 +51,21 @@
           <div class="header-left">
             <span class="status-dot" id="header-dot"></span>
             <span class="brand-glyph small" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none">
-                <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8" stroke-dasharray="40 14" stroke-linecap="round"/>
-                <circle cx="12" cy="12" r="2.6" fill="currentColor"/>
-                <circle cx="17.8" cy="6.2" r="1.7" fill="currentColor"/>
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none">
+                <defs>
+                  <linearGradient id="ag-grad-hdr" x1="3" y1="21" x2="18" y2="3" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#3b82f6"/>
+                    <stop offset="46%" stop-color="#34a853"/>
+                    <stop offset="76%" stop-color="#fbbc04"/>
+                    <stop offset="100%" stop-color="#ea4335"/>
+                  </linearGradient>
+                  <radialGradient id="ag-blue-hdr" cx="50%" cy="76%" r="54%">
+                    <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.95"/>
+                    <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+                  </radialGradient>
+                </defs>
+                <path d="M12 2.8C14.8 2.8 16.3 6.2 17.6 11.8C18.5 15.7 19.9 18.2 21.6 19.9C22.2 20.5 21.8 21.4 20.8 21.4C19.6 21.4 18.3 20.1 17 18C15.5 15.5 14.4 12.6 12 12.6C9.6 12.6 8.5 15.5 7 18C5.7 20.1 4.4 21.4 3.2 21.4C2.2 21.4 1.8 20.5 2.4 19.9C4.1 18.2 5.5 15.7 6.4 11.8C7.7 6.2 9.2 2.8 12 2.8Z" fill="url(#ag-grad-hdr)"/>
+                <path d="M12 2.8C14.8 2.8 16.3 6.2 17.6 11.8C18.5 15.7 19.9 18.2 21.6 19.9C22.2 20.5 21.8 21.4 20.8 21.4C19.6 21.4 18.3 20.1 17 18C15.5 15.5 14.4 12.6 12 12.6C9.6 12.6 8.5 15.5 7 18C5.7 20.1 4.4 21.4 3.2 21.4C2.2 21.4 1.8 20.5 2.4 19.9C4.1 18.2 5.5 15.7 6.4 11.8C7.7 6.2 9.2 2.8 12 2.8Z" fill="url(#ag-blue-hdr)"/>
               </svg>
             </span>
             <div class="title-stack">
@@ -163,7 +185,7 @@
         <section id="drawer-settings" class="drawer hidden">
           <div class="drawer-header">
             <span class="drawer-title" id="settings-title">Preferences</span>
-            <span class="version-tag">v0.2.1</span>
+            <span class="version-tag">v0.2.2</span>
           </div>
           <div class="studio-controls">
             <div class="control-row">
