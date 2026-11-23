@@ -53,6 +53,10 @@ pub struct AppConfig {
     pub notifications: bool,
     pub pinned_expanded: bool,
     pub visible: bool,
+    /// macOS only: keep showing quota text in the menu bar even when the floating Island is visible.
+    /// When false (default), menu bar shows only the icon while Island is visible and automatically
+    /// displays live quota text whenever the Island is hidden.
+    pub always_show_menubar_text: bool,
     pub widget_x: Option<f64>,
     pub widget_y: Option<f64>,
 }
@@ -70,6 +74,7 @@ impl Default for AppConfig {
             notifications: true,
             pinned_expanded: false,
             visible: true,
+            always_show_menubar_text: false,
             widget_x: None,
             widget_y: None,
         }

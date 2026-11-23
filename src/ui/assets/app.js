@@ -1,4 +1,7 @@
 (() => {
+  const CLOCK_SVG = `<svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.6V8l2.3 1.4"/></svg>`;
+  const CHECK_SVG = `<svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.2 8.4l3.1 3.1 6.5-6.8"/></svg>`;
+
   const I18N = {
     en: {
       waiting: "Waiting for Antigravity",
@@ -17,16 +20,31 @@
       prefs: "Preferences",
       display: "Display",
       pillStyle: "Pill Style",
+      position: "Position",
+      resetPos: "Top Center",
+      menubarText: "Menu Bar Text",
       syncRate: "Sync Rate",
       language: "Language",
       alerts: "Low Alerts",
       demoMode: "Demo Mode",
+      hide: "Hide",
+      hideTip: "Hide Island (restore from tray)",
       collapse: "Collapse",
+      dragHeaderTip: "Drag to move · Double-click to reset top center",
+      pillTip: "Hover/click to expand · Drag to move · Right-click to hide",
       justNow: "just now",
       secAgo: (s) => `${s}s ago`,
       minAgo: (m) => `${m}m ago`,
-      resetIn: (t) => `resets ${t}`,
-      resetDue: "resetting…",
+      resetIn: (t) => `Resets in ${t}`,
+      resetDue: "Resetting…",
+      resetAt: (tm) => `at ${tm}`,
+      wkTag: "7d",
+      fiveHourName: "5-Hour Quota",
+      weeklyName: "Weekly Quota",
+      sessionName: "Session Quota",
+      fullTag: "Full",
+      fullQuota: "Full quota",
+      weekdays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
       offlinePill: "AGY Offline",
       syncingPill: "Syncing…",
       zeroTelemetry: "Loopback RPC · Local only",
@@ -48,16 +66,31 @@
       prefs: "偏好设置",
       display: "显示形态",
       pillStyle: "胶囊信息",
+      position: "悬停位置",
+      resetPos: "居中置顶",
+      menubarText: "状态栏文字",
       syncRate: "刷新频率",
       language: "界面语言",
       alerts: "低额度提醒",
       demoMode: "演示模式",
-      collapse: "收起灵动岛",
+      hide: "隐藏",
+      hideTip: "隐藏灵动岛（可在托盘/状态栏重新显示）",
+      collapse: "收起",
+      dragHeaderTip: "按住拖拽位置 · 双击恢复居中置顶",
+      pillTip: "悬停/点击展开 · 拖拽移动 · 右键隐藏",
       justNow: "刚刚更新",
       secAgo: (s) => `${s}秒前`,
       minAgo: (m) => `${m}分钟前`,
-      resetIn: (t) => `${t}后重置`,
-      resetDue: "即将重置",
+      resetIn: (t) => `${t} 后刷新`,
+      resetDue: "即将刷新",
+      resetAt: (tm) => `预计 ${tm}`,
+      wkTag: "周",
+      fiveHourName: "5小时额度",
+      weeklyName: "本周额度",
+      sessionName: "会话额度",
+      fullTag: "满额",
+      fullQuota: "额度充足",
+      weekdays: ["周日", "周一", "周二", "周三", "周四", "周五", "周六"],
       offlinePill: "未连接 AGY",
       syncingPill: "同步中…",
       zeroTelemetry: "纯本地回环同步 · 零上传",
@@ -106,11 +139,18 @@
     $("settings-title").textContent = t.prefs;
     $("lbl-mode").textContent = t.display;
     $("lbl-density").textContent = t.pillStyle;
+    $("lbl-position").textContent = t.position;
+    $("btn-reset-pos").textContent = t.resetPos;
+    $("lbl-menubar-text").textContent = t.menubarText;
     $("lbl-poll").textContent = t.syncRate;
     $("lbl-lang").textContent = t.language;
     $("lbl-notify").textContent = t.alerts;
     $("lbl-demo").textContent = t.demoMode;
+    $("btn-hide").title = t.hideTip;
+    $("btn-hide-footer").textContent = t.hide;
     $("btn-collapse").textContent = t.collapse;
+    $("drag-header").title = payload?.config?.mode === "notch_hug" ? "" : t.dragHeaderTip;
+    $("pill-view").title = payload?.config?.mode === "notch_hug" ? "" : t.pillTip;
   }
 
   function applySkinVars(skin) {
@@ -236,9 +276,44 @@
     const days = Math.floor(diffSec / 86400);
     const hours = Math.floor((diffSec % 86400) / 3600);
     const mins = Math.floor((diffSec % 3600) / 60);
-    if (days > 0) return `${days}d`;
+    const secs = diffSec % 60;
+    if (days > 0) return `${days}d${hours}h`;
     if (hours > 0) return `${hours}h${String(mins).padStart(2, "0")}m`;
-    return `${mins}m`;
+    if (mins >= 10) return `${mins}m`;
+    return `${mins}m${String(secs).padStart(2, "0")}s`;
+  }
+
+  function isResetSoon(isoString) {
+    if (!isoString) return false;
+    const targetMs = Date.parse(isoString);
+    if (!Number.isFinite(targetMs)) return false;
+    const diffSec = Math.floor((targetMs - Date.now()) / 1000);
+    return diffSec > 0 && diffSec <= 45 * 60;
+  }
+
+  function formatExactResetTime(isoString, isWeekly) {
+    if (!isoString) return "";
+    const targetMs = Date.parse(isoString);
+    if (!Number.isFinite(targetMs)) return "";
+    const d = new Date(targetMs);
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    const diffHrs = (targetMs - Date.now()) / 3600000;
+    const t = langPack();
+    if (isWeekly || diffHrs >= 20) {
+      const wd = t.weekdays[d.getDay()] || "";
+      return t.resetAt(`${wd} ${hh}:${mm}`);
+    }
+    return t.resetAt(`${hh}:${mm}`);
+  }
+
+  function localizeBucketName(bucket) {
+    const t = langPack();
+    const kind = bucket.cadence?.kind;
+    if (kind === "five_hour") return t.fiveHourName;
+    if (kind === "weekly") return t.weeklyName;
+    if (kind === "session") return t.sessionName;
+    return bucket.display_name || "Quota";
   }
 
   function extractGlanceGroups(snapshot) {
@@ -272,7 +347,16 @@
         accent_key: g.accent_key,
         primaryPct: pctOf(primary),
         primaryReset: primary.reset_time || null,
+        primaryTag:
+          primary.cadence?.kind === "five_hour"
+            ? "5h"
+            : primary.cadence?.kind === "weekly"
+            ? langPack().wkTag
+            : primary.cadence?.kind === "session"
+            ? "Sess"
+            : "5h",
         secondaryPct: secondary ? pctOf(secondary) : null,
+        secondaryReset: secondary?.reset_time || null,
         minPct,
       });
     }
@@ -280,86 +364,185 @@
   }
 
   function makePillChip(item, density, isNotch) {
-    const color = healthColorForPercent(item.minPct) || accentVarFor(item.accent_key);
+    const t = langPack();
+    const accent = accentVarFor(item.accent_key);
+    const primaryColor = healthColorForPercent(item.primaryPct) || accent;
+    const overallColor = healthColorForPercent(item.minPct) || accent;
+
     if (density === "compact") {
       const chip = document.createElement("span");
       chip.className = "pill-chip";
       chip.innerHTML = `
-        <span class="pill-chip-code" style="color:${color}">${item.code}</span>
+        <span class="pill-chip-code" style="color:${overallColor}">${item.code}</span>
         <span class="pill-chip-pct">${item.minPct}%</span>
       `;
       return chip;
     }
 
-    const r = 7.2;
-    const c = 2 * Math.PI * r;
-    const dash = (c * item.primaryPct) / 100;
-    const timer = !isNotch ? formatShortTimer(item.primaryReset) : "";
-    const showSecondary =
-      item.secondaryPct !== null &&
-      (item.secondaryPct !== item.primaryPct || !timer);
-
-    let subHtml = "";
-    if (showSecondary && !isNotch) {
-      subHtml += `<span class="glance-sub-badge">7d ${item.secondaryPct}%</span>`;
-    } else if (showSecondary && isNotch) {
-      subHtml += `<span class="glance-sub-badge">${item.secondaryPct}%</span>`;
+    if (isNotch) {
+      const r = 7.2;
+      const c = 2 * Math.PI * r;
+      const dash = (c * item.primaryPct) / 100;
+      const subHtml =
+        item.secondaryPct !== null
+          ? `<span class="glance-sub-badge">${t.wkTag}${item.secondaryPct}%</span>`
+          : "";
+      const chip = document.createElement("span");
+      chip.className = "glance-chip";
+      chip.innerHTML = `
+        <span class="mini-ring" aria-hidden="true">
+          <svg width="19" height="19" viewBox="0 0 20 20">
+            <circle cx="10" cy="10" r="${r}" fill="none" stroke="var(--track-bg)" stroke-width="2.4"/>
+            <circle cx="10" cy="10" r="${r}" fill="none" stroke="${primaryColor}" stroke-width="2.4"
+              stroke-linecap="round" stroke-dasharray="${dash.toFixed(1)} ${c.toFixed(1)}"/>
+          </svg>
+        </span>
+        <span class="glance-text">
+          <span class="glance-code" style="color:${primaryColor}">${item.code}</span>
+          <span class="glance-pct">${item.primaryPct}%</span>
+          ${subHtml}
+        </span>
+      `;
+      return chip;
     }
-    if (timer) {
-      subHtml += `<span class="pill-timer" data-short-reset="${escapeHtml(item.primaryReset || "")}">${timer}</span>`;
+
+    // Dual-Row At-a-Glance Card (Concentric 5h + Weekly Dual-Ring | Row 1: 5h % + 5h Countdown | Row 2: Weekly % + Bar)
+    const rOuter = 11.8;
+    const cOuter = 2 * Math.PI * rOuter;
+    const dashOuter = (cOuter * item.primaryPct) / 100;
+
+    const hasWeekly = item.secondaryPct !== null;
+    const wkPct = hasWeekly ? item.secondaryPct : item.primaryPct;
+    const wkColor = hasWeekly
+      ? healthColorForPercent(wkPct) || `color-mix(in srgb, ${accent} 76%, var(--text-primary))`
+      : primaryColor;
+
+    const rInner = 7.7;
+    const cInner = 2 * Math.PI * rInner;
+    const dashInner = (cInner * wkPct) / 100;
+
+    const timerText = formatShortTimer(item.primaryReset);
+    const soon = isResetSoon(item.primaryReset) && item.primaryPct < 80;
+
+    let timerHtml = "";
+    if (timerText) {
+      timerHtml = `
+        <span class="timer-5h ${soon ? "soon" : ""}" data-soon-reset="${escapeHtml(item.primaryReset || "")}" data-pct="${item.primaryPct}">
+          ${CLOCK_SVG}<span class="timer-5h-text" data-short-reset="${escapeHtml(item.primaryReset || "")}">${timerText}</span>
+        </span>
+      `;
+    } else if (item.primaryPct >= 100) {
+      timerHtml = `<span class="timer-5h full">${CHECK_SVG}<span>${t.fullTag}</span></span>`;
     }
 
-    const chip = document.createElement("span");
-    chip.className = "glance-chip";
-    chip.innerHTML = `
-      <span class="mini-ring" aria-hidden="true">
-        <svg width="19" height="19" viewBox="0 0 20 20">
-          <circle cx="10" cy="10" r="${r}" fill="none" stroke="var(--track-bg)" stroke-width="2.4"/>
-          <circle cx="10" cy="10" r="${r}" fill="none" stroke="${color}" stroke-width="2.4"
-            stroke-linecap="round" stroke-dasharray="${dash.toFixed(1)} ${c.toFixed(1)}"/>
+    const row2Html = hasWeekly
+      ? `
+        <div class="glance-row-wk">
+          <span class="tag-wk">${t.wkTag}</span>
+          <span class="val-wk" style="${healthColorForPercent(wkPct) ? `color:${wkColor}` : ""}">${wkPct}%</span>
+          <span class="wk-bar-track"><span class="wk-bar-fill" style="width:${wkPct}%;background:${wkColor}"></span></span>
+        </div>
+      `
+      : `
+        <div class="glance-row-wk">
+          <span class="tag-wk">${escapeHtml(item.shortLabel.slice(0, 6))}</span>
+          <span class="wk-bar-track"><span class="wk-bar-fill" style="width:${item.primaryPct}%;background:${primaryColor}"></span></span>
+        </div>
+      `;
+
+    const card = document.createElement("span");
+    card.className = "glance-card";
+    card.innerHTML = `
+      <span class="dual-ring" aria-hidden="true">
+        <svg width="28" height="28" viewBox="0 0 28 28">
+          <circle cx="14" cy="14" r="${rOuter}" fill="none" stroke="var(--track-bg)" stroke-width="2.4"/>
+          <circle cx="14" cy="14" r="${rOuter}" fill="none" stroke="${primaryColor}" stroke-width="2.4"
+            stroke-linecap="round" stroke-dasharray="${dashOuter.toFixed(1)} ${cOuter.toFixed(1)}"/>
+          ${
+            hasWeekly
+              ? `
+            <circle cx="14" cy="14" r="${rInner}" fill="none" stroke="var(--track-bg)" stroke-width="1.8" opacity="0.8"/>
+            <circle cx="14" cy="14" r="${rInner}" fill="none" stroke="${wkColor}" stroke-width="1.8"
+              stroke-linecap="round" stroke-dasharray="${dashInner.toFixed(1)} ${cInner.toFixed(1)}"/>
+          `
+              : ""
+          }
         </svg>
+        <span class="dual-ring-code" style="color:${primaryColor}">${item.code}</span>
       </span>
-      <span class="glance-text">
-        <span class="glance-code" style="color:${color}">${item.code}</span>
-        <span class="glance-pct">${item.primaryPct}%</span>
-        ${subHtml ? `<span class="glance-sub">${subHtml}</span>` : ""}
+      <span class="glance-rows">
+        <div class="glance-row-5h">
+          <span class="tag-5h" style="color:${primaryColor};background:color-mix(in srgb, ${primaryColor} 18%, transparent)">${escapeHtml(item.primaryTag)}</span>
+          <span class="val-5h" style="${healthColorForPercent(item.primaryPct) ? `color:${primaryColor}` : ""}">${item.primaryPct}%</span>
+          ${timerHtml}
+        </div>
+        ${row2Html}
       </span>
     `;
-    return chip;
+    return card;
   }
 
   function renderGauge(bucket, accent, gaugeStyle) {
+    const t = langPack();
     const pct = bucket.disabled
       ? 0
       : typeof bucket.remaining_fraction === "number"
       ? Math.round(Math.max(0, Math.min(1, bucket.remaining_fraction)) * 100)
       : 0;
     const fillCol = bucket.disabled ? "var(--text-muted)" : (healthColorForPercent(pct) || accent);
-    const cadenceTag =
-      bucket.cadence?.kind === "five_hour"
-        ? "5h"
-        : bucket.cadence?.kind === "weekly"
-        ? "7d"
-        : bucket.cadence?.kind === "session"
+    const isFiveHour = bucket.cadence?.kind === "five_hour" || bucket.cadence?.kind === "session";
+    const isWeekly = bucket.cadence?.kind === "weekly";
+    const cadenceTag = isFiveHour
+      ? bucket.cadence?.kind === "session"
         ? "Sess"
-        : bucket.cadence?.label || "Limit";
+        : "5h"
+      : isWeekly
+      ? t.wkTag
+      : bucket.cadence?.label || "Limit";
+    const cadenceStyle = isFiveHour
+      ? `style="color:${accent};background:color-mix(in srgb, ${accent} 17%, transparent)"`
+      : "";
+    const cadenceClass = isFiveHour ? "cadence-5h" : isWeekly ? "cadence-wk" : "";
+    const localizedName = localizeBucketName(bucket);
+
     const pace = computePaceDelta(bucket);
     const paceHtml =
       pace !== null && Math.abs(pace) >= 3
         ? `<span class="pace-tag ${pace >= 0 ? "ahead" : "fast"}">${pace > 0 ? "+" : ""}${pace}%</span>`
         : "";
+
     const countdown = formatCountdown(bucket.reset_time);
+    const exactClock = formatExactResetTime(bucket.reset_time, isWeekly);
+    const soon = isFiveHour && isResetSoon(bucket.reset_time) && pct < 80;
+
+    let footHtml = "";
+    if (countdown) {
+      footHtml = `
+        <div class="bucket-foot">
+          <span class="reset-pill ${isFiveHour ? "is-5h" : ""} ${soon ? "soon" : ""}" data-soon-reset="${escapeHtml(bucket.reset_time || "")}" data-pct="${pct}">
+            ${CLOCK_SVG}<span class="reset-pill-text" data-reset="${escapeHtml(bucket.reset_time || "")}">${countdown}</span>
+          </span>
+          ${exactClock ? `<span class="reset-clock" data-clock-reset="${escapeHtml(bucket.reset_time || "")}" data-weekly="${isWeekly ? "1" : "0"}">${escapeHtml(exactClock)}</span>` : ""}
+        </div>
+      `;
+    } else if (!bucket.disabled && pct >= 100) {
+      footHtml = `
+        <div class="bucket-foot">
+          <span class="reset-pill full">${CHECK_SVG}<span>${t.fullQuota}</span></span>
+        </div>
+      `;
+    }
 
     if (gaugeStyle === "ring") {
-      const r = 13;
+      const r = 15;
       const c = 2 * Math.PI * r;
       const dash = (c * pct) / 100;
       return `
         <div class="ring-row">
           <div class="ring-wrap">
-            <svg width="34" height="34" viewBox="0 0 34 34">
-              <circle cx="17" cy="17" r="${r}" fill="none" stroke="var(--track-bg)" stroke-width="3.2"/>
-              <circle cx="17" cy="17" r="${r}" fill="none" stroke="${fillCol}" stroke-width="3.2"
+            <svg width="38" height="38" viewBox="0 0 38 38">
+              <circle cx="19" cy="19" r="${r}" fill="none" stroke="var(--track-bg)" stroke-width="3.4"/>
+              <circle cx="19" cy="19" r="${r}" fill="none" stroke="${fillCol}" stroke-width="3.4"
                 stroke-linecap="round" stroke-dasharray="${dash.toFixed(1)} ${c.toFixed(1)}"/>
             </svg>
             <div class="ring-center" style="color:${fillCol}">${bucket.disabled ? "--" : `${pct}%`}</div>
@@ -367,14 +550,14 @@
           <div class="ring-meta">
             <div class="bucket-top">
               <span class="bucket-name-wrap">
-                <span class="cadence-pill">${cadenceTag}</span>
-                <span class="bucket-label">${escapeHtml(bucket.display_name)}</span>
+                <span class="cadence-pill ${cadenceClass}" ${cadenceStyle}>${escapeHtml(cadenceTag)}</span>
+                <span class="bucket-label">${escapeHtml(localizedName)}</span>
               </span>
               <span class="bucket-stats">
                 ${paceHtml}
-                <span class="reset-timer" data-reset="${escapeHtml(bucket.reset_time || "")}">${countdown}</span>
               </span>
             </div>
+            ${footHtml}
           </div>
         </div>
       `;
@@ -410,16 +593,16 @@
       <div class="bucket-row">
         <div class="bucket-top">
           <span class="bucket-name-wrap">
-            <span class="cadence-pill">${cadenceTag}</span>
-            <span class="bucket-label">${escapeHtml(bucket.display_name)}</span>
+            <span class="cadence-pill ${cadenceClass}" ${cadenceStyle}>${escapeHtml(cadenceTag)}</span>
+            <span class="bucket-label">${escapeHtml(localizedName)}</span>
           </span>
           <span class="bucket-stats">
             ${paceHtml}
-            <span class="reset-timer" data-reset="${escapeHtml(bucket.reset_time || "")}">${countdown}</span>
             <span class="pct-text" style="color:${fillCol}">${bucket.disabled ? "--" : `${pct}%`}</span>
           </span>
         </div>
         ${trackHtml}
+        ${footHtml}
       </div>
     `;
   }
@@ -600,6 +783,9 @@
       const cfg = payload.config || {};
       const isMac = payload.platform === "macos";
       $("btn-mode-notch").classList.toggle("hidden", !isMac);
+      $("row-position").classList.toggle("hidden", cfg.mode === "notch_hug");
+      $("row-menubar-text").classList.toggle("hidden", !isMac);
+      $("chk-menubar-text").checked = !!cfg.always_show_menubar_text;
       $("mode-selector")
         .querySelectorAll("button")
         .forEach((b) => b.classList.toggle("active", b.dataset.mode === cfg.mode));
@@ -653,17 +839,24 @@
     render();
   }
 
-  // Hover + Click Interactions
+  // Hover + Click + Universal Drag & Hide Interactions (macOS & Windows)
   const shell = $("island-shell");
+  let pillPress = null;
+  let suppressPillClick = false;
+  let suppressResetTimer = null;
+
   shell.addEventListener("mouseenter", () => {
     clearTimeout(leaveTimer);
-    if (!expanded && payload?.config?.mode !== "widget") {
-      hoverTimer = setTimeout(() => setExpanded(true), 85);
+    if (!expanded && !pillPress && payload?.config?.mode !== "widget") {
+      hoverTimer = setTimeout(() => {
+        if (!pillPress) setExpanded(true);
+      }, 180);
     }
   });
 
   shell.addEventListener("mouseleave", () => {
     clearTimeout(hoverTimer);
+    pillPress = null;
     if (
       expanded &&
       !payload?.config?.pinned_expanded &&
@@ -674,10 +867,9 @@
     }
   });
 
-  let pillPress = null;
-  let suppressPillClick = false;
   $("pill-view").addEventListener("mousedown", (e) => {
-    if (payload?.config?.mode === "widget" && e.button === 0) {
+    clearTimeout(hoverTimer);
+    if (payload?.config?.mode !== "notch_hug" && e.button === 0) {
       pillPress = { x: e.clientX, y: e.clientY };
       suppressPillClick = false;
     }
@@ -687,10 +879,18 @@
     if (Math.hypot(e.clientX - pillPress.x, e.clientY - pillPress.y) > 4) {
       pillPress = null;
       suppressPillClick = true;
+      clearTimeout(suppressResetTimer);
+      suppressResetTimer = setTimeout(() => {
+        suppressPillClick = false;
+      }, 350);
+      clearTimeout(hoverTimer);
       post("drag");
     }
   });
   window.addEventListener("mouseup", () => {
+    pillPress = null;
+  });
+  window.addEventListener("blur", () => {
     pillPress = null;
   });
   $("pill-view").addEventListener("click", () => {
@@ -700,13 +900,27 @@
     }
     setExpanded(true);
   });
+  $("pill-view").addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    post("hide");
+  });
 
   $("drag-header").addEventListener("mousedown", (e) => {
-    if (e.target.closest("button")) return;
-    if (payload?.config?.mode === "widget") {
+    if (e.target.closest("button") || e.button !== 0) return;
+    if (payload?.config?.mode !== "notch_hug") {
       post("drag");
     }
   });
+  $("drag-header").addEventListener("dblclick", (e) => {
+    if (e.target.closest("button")) return;
+    if (payload?.config?.mode !== "notch_hug") {
+      post("reset_position");
+    }
+  });
+
+  $("btn-hide").addEventListener("click", () => post("hide"));
+  $("btn-hide-footer").addEventListener("click", () => post("hide"));
+  $("btn-reset-pos").addEventListener("click", () => post("reset_position"));
 
   $("btn-collapse").addEventListener("click", () => {
     if (payload?.config?.pinned_expanded) {
@@ -825,6 +1039,9 @@
     const btn = e.target.closest("button[data-lang]");
     if (btn) post("set_language", { lang: btn.dataset.lang });
   });
+  $("chk-menubar-text").addEventListener("change", (e) => {
+    post("set_always_show_menubar_text", { enabled: e.target.checked });
+  });
   $("chk-notify").addEventListener("change", (e) => {
     post("set_notifications", { enabled: e.target.checked });
   });
@@ -837,18 +1054,30 @@
     if (!payload?.status?.snapshot) return;
     if (expanded) {
       $("sync-age").textContent = formatSyncAge(payload.status.snapshot.fetched_at);
-      document.querySelectorAll(".reset-timer[data-reset]").forEach((el) => {
+      document.querySelectorAll(".reset-pill-text[data-reset]").forEach((el) => {
         if (el.dataset.reset) {
           el.textContent = formatCountdown(el.dataset.reset);
         }
       });
+      document.querySelectorAll(".reset-clock[data-clock-reset]").forEach((el) => {
+        if (el.dataset.clockReset) {
+          el.textContent = formatExactResetTime(el.dataset.clockReset, el.dataset.weekly === "1");
+        }
+      });
     } else {
-      document.querySelectorAll(".pill-timer[data-short-reset]").forEach((el) => {
+      document.querySelectorAll(".timer-5h-text[data-short-reset]").forEach((el) => {
         if (el.dataset.shortReset) {
           el.textContent = formatShortTimer(el.dataset.shortReset);
         }
       });
     }
+    document.querySelectorAll("[data-soon-reset]").forEach((el) => {
+      const iso = el.dataset.soonReset;
+      const pct = Number(el.dataset.pct ?? 100);
+      if (iso) {
+        el.classList.toggle("soon", isResetSoon(iso) && pct < 80);
+      }
+    });
   }, 1000);
 
   // Incoming state from Rust

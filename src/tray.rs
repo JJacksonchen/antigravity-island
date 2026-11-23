@@ -1,8 +1,11 @@
 //! Native macOS / Windows / Linux tray status item with live at-a-glance quota indicator.
 //!
-//! - On macOS: renders a crisp template orbital icon alongside live menu bar text (`G 76%/67% · C 100%`).
+//! - On macOS: renders a crisp template orbital icon; avoids visual duplication while the floating
+//!   Island is visible (unless `always_show_menubar_text` is enabled) and automatically shows live
+//!   quota text (`G 65%/64% · C 100%`) whenever the Island is hidden.
 //! - On Windows & Linux: dynamically renders a color-coded circular progress ring icon reflecting
-//!   the live remaining quota percentage, paired with a rich multi-line hover tooltip.
+//!   the live remaining quota percentage, paired with a rich multi-line hover tooltip. Left-click
+//!   on Windows directly toggles Show / Hide of the floating Island.
 
 use std::collections::HashMap;
 
@@ -21,9 +24,11 @@ use crate::skin::SkinManifest;
 pub enum TrayAction {
     ToggleVisible,
     ToggleExpand,
+    ResetPosition,
     RefreshNow,
     SetMode(DisplayMode),
     SetPillDensity(PillDensity),
+    ToggleMenuBarText,
     SelectSkin(String),
     ToggleDemo,
     OpenSkinsDir,
@@ -48,7 +53,7 @@ impl TrayController {
         #[cfg(target_os = "macos")]
         let tray = {
             let icon = build_orbital_template_icon()?;
-            let title = tray_title_from_state(state);
+            let title = tray_title_from_state(config, state);
             TrayIconBuilder::new()
                 .with_icon_templated(icon)
                 .with_title(&title)
@@ -64,6 +69,7 @@ impl TrayController {
                 .with_icon(icon)
                 .with_tooltip(&tooltip)
                 .with_menu(Box::new(menu))
+                .with_menu_on_left_click(false)
                 .build()?
         };
 
@@ -77,7 +83,7 @@ impl TrayController {
 
         #[cfg(target_os = "macos")]
         {
-            let title = tray_title_from_state(state);
+            let title = tray_title_from_state(config, state);
             self.tray.set_title(Some(&title));
         }
 
@@ -100,7 +106,12 @@ impl TrayController {
 }
 
 #[cfg(target_os = "macos")]
-fn tray_title_from_state(state: &SyncState) -> String {
+fn tray_title_from_state(config: &AppConfig, state: &SyncState) -> String {
+    // Keep the macOS menu bar clean (icon-only) while the Dynamic Island is visible so it never
+    // duplicates the Island directly below it; automatically display live quota text when hidden.
+    if config.visible && !config.always_show_menubar_text {
+        return String::new();
+    }
     match &state.snapshot {
         Some(snap) => {
             let prefix = if state.demo_mode { "DEMO " } else { "" };
@@ -163,6 +174,10 @@ fn build_menu(
     actions.insert(toggle_expand.id().clone(), TrayAction::ToggleExpand);
     let _ = menu.append(&toggle_expand);
 
+    let reset_pos = MenuItem::new("Reset Position (Top Center)", true, None);
+    actions.insert(reset_pos.id().clone(), TrayAction::ResetPosition);
+    let _ = menu.append(&reset_pos);
+
     let refresh_item = MenuItem::new("Refresh Quota Now", true, None);
     actions.insert(refresh_item.id().clone(), TrayAction::RefreshNow);
     let _ = menu.append(&refresh_item);
@@ -172,7 +187,7 @@ fn build_menu(
     // Display mode submenu
     let mode_menu = Submenu::new("Display Mode", true);
     let island_item = CheckMenuItem::new(
-        "Dynamic Island (Top Floating)",
+        "Dynamic Island (Hover Expand · Draggable)",
         true,
         config.mode == DisplayMode::Island,
         None,
@@ -199,7 +214,7 @@ fn build_menu(
     }
 
     let widget_item = CheckMenuItem::new(
-        "Desktop Widget (Draggable)",
+        "Desktop Widget (Click Expand · Draggable)",
         true,
         config.mode == DisplayMode::Widget,
         None,
@@ -214,7 +229,7 @@ fn build_menu(
     // Pill density submenu
     let density_menu = Submenu::new("Pill Style", true);
     for (label, density) in [
-        ("Glance (At-a-Glance Rings & Timers)", PillDensity::Glance),
+        ("Glance (5h + Weekly + Countdown)", PillDensity::Glance),
         ("Compact (Minimal Pill)", PillDensity::Compact),
     ] {
         let item = CheckMenuItem::new(label, true, config.pill_density == density, None);
@@ -222,6 +237,21 @@ fn build_menu(
         let _ = density_menu.append(&item);
     }
     let _ = menu.append(&density_menu);
+
+    #[cfg(target_os = "macos")]
+    {
+        let menubar_text_item = CheckMenuItem::new(
+            "Always Show Menu Bar Quota Text",
+            true,
+            config.always_show_menubar_text,
+            None,
+        );
+        actions.insert(
+            menubar_text_item.id().clone(),
+            TrayAction::ToggleMenuBarText,
+        );
+        let _ = menu.append(&menubar_text_item);
+    }
 
     // Skins submenu
     let skin_menu = Submenu::new("Skins", true);
@@ -297,11 +327,11 @@ fn build_live_quota_ring_icon(config: &AppConfig, state: &SyncState) -> anyhow::
         .as_ref()
         .and_then(|s| s.min_remaining_percent());
     let (r, g, b) = match pct_opt {
-        None => (148u8, 163u8, 184u8), // slate offline
-        Some(p) if p <= config.danger_threshold => (251u8, 113u8, 133u8), // coral red
-        Some(p) if p <= config.warn_threshold => (251u8, 191u8, 36u8), // amber
-        Some(p) if p >= 75 => (52u8, 211u8, 153u8), // emerald
-        Some(_) => (56u8, 189u8, 248u8), // sky blue
+        None => (148u8, 163u8, 184u8),
+        Some(p) if p <= config.danger_threshold => (251u8, 113u8, 133u8),
+        Some(p) if p <= config.warn_threshold => (251u8, 191u8, 36u8),
+        Some(p) if p >= 75 => (52u8, 211u8, 153u8),
+        Some(_) => (56u8, 189u8, 248u8),
     };
     let fill_frac = pct_opt.map(|p| (p as f32) / 100.0).unwrap_or(0.0);
 
@@ -315,17 +345,14 @@ fn build_live_quota_ring_icon(config: &AppConfig, state: &SyncState) -> anyhow::
             let dy = y as f32 - center;
             let dist = (dx * dx + dy * dy).sqrt();
 
-            // Subtle dark translucent disc behind ring for high contrast on both light/dark Windows taskbars.
-            let disc_alpha = (14.8 - dist).clamp(0.0, 1.0) * 0.82;
+            let disc_alpha = (14.8 - dist).clamp(0.0, 1.0) * 0.84;
             let mut out_r = 14.0f32;
             let mut out_g = 17.0f32;
             let mut out_b = 24.0f32;
             let mut out_a = disc_alpha;
 
-            // Progress ring centered at radius 10.6, stroke width ~3.4px.
             let ring_cov = (2.1 - (dist - 10.6).abs()).clamp(0.0, 1.0);
             if ring_cov > 0.0 {
-                // Clockwise angle starting from 12 o'clock (0.0..1.0).
                 let angle =
                     (dx.atan2(-dy).rem_euclid(std::f32::consts::TAU)) / std::f32::consts::TAU;
                 let filled = pct_opt.is_some() && angle <= fill_frac.max(0.03);
@@ -340,7 +367,6 @@ fn build_live_quota_ring_icon(config: &AppConfig, state: &SyncState) -> anyhow::
                 out_a = out_a.max(ra);
             }
 
-            // Center glowing status dot.
             let dot_cov = (3.4 - dist).clamp(0.0, 1.0);
             if dot_cov > 0.0 {
                 out_r = (r as f32) * dot_cov + out_r * (1.0 - dot_cov);

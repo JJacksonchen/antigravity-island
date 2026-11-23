@@ -8,10 +8,10 @@ use tao::window::Window;
 use super::ScreenMetrics;
 use crate::config::DisplayMode;
 
-/// Window level above the macOS menu bar so the Dynamic Island integrates seamlessly at the top edge.
-const ISLAND_WINDOW_LEVEL: NSWindowLevel = 27;
-/// Standard floating widget level (above normal windows, below menu bar).
-const WIDGET_WINDOW_LEVEL: NSWindowLevel = 3;
+/// Window level above the macOS menu bar — used ONLY in explicit NotchHug mode.
+const NOTCH_HUG_WINDOW_LEVEL: NSWindowLevel = 27;
+/// Floating overlay level above all normal app windows without overlapping the macOS menu bar.
+const FLOATING_WINDOW_LEVEL: NSWindowLevel = 3;
 
 /// Configures the `tao` window as a transparent, shadow-free, all-Spaces floating surface.
 pub fn configure_window(window: &Window, mode: DisplayMode) {
@@ -57,8 +57,8 @@ pub fn update_window_mode(window: &Window, mode: DisplayMode) {
 
 fn window_level_for_mode(mode: DisplayMode) -> NSWindowLevel {
     match mode {
-        DisplayMode::Island | DisplayMode::NotchHug => ISLAND_WINDOW_LEVEL,
-        DisplayMode::Widget => WIDGET_WINDOW_LEVEL,
+        DisplayMode::NotchHug => NOTCH_HUG_WINDOW_LEVEL,
+        DisplayMode::Island | DisplayMode::Widget => FLOATING_WINDOW_LEVEL,
     }
 }
 

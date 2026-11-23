@@ -1,5 +1,7 @@
 //! Desktop window host, WKWebView/WebView2 lifecycle, bidirectional IPC, and event loop controller.
 
+use std::time::{Duration, Instant};
+
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tao::dpi::{LogicalPosition, LogicalSize};
@@ -7,6 +9,7 @@ use tao::event::{Event, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoopBuilder};
 use tao::window::WindowBuilder;
 use tray_icon::menu::MenuEvent;
+use tray_icon::{MouseButton, MouseButtonState, TrayIconEvent};
 use wry::WebViewBuilder;
 
 #[cfg(target_os = "macos")]
@@ -33,6 +36,7 @@ pub enum AppEvent {
     SkinsReloaded,
     IpcMessage(String),
     MenuEvent(MenuEvent),
+    TrayEvent(TrayIconEvent),
 }
 
 #[derive(Debug, Deserialize)]
@@ -41,6 +45,8 @@ enum IpcCommand {
     Ready,
     Resize { width: f64, height: f64 },
     Drag,
+    Hide,
+    ResetPosition,
     Refresh,
     SetSkin { id: String },
     SaveSkin { skin: Box<SkinManifest> },
@@ -50,6 +56,7 @@ enum IpcCommand {
     SetPollInterval { secs: u64 },
     SetLanguage { lang: Language },
     SetNotifications { enabled: bool },
+    SetAlwaysShowMenubarText { enabled: bool },
     SetDemo { enabled: bool },
     OpenSkinsDir,
 }
@@ -90,15 +97,20 @@ pub fn run_app(mut config: AppConfig, demo_mode: bool) -> anyhow::Result<()> {
         let _ = menu_proxy.send_event(AppEvent::MenuEvent(ev));
     }));
 
+    let tray_click_proxy = proxy.clone();
+    TrayIconEvent::set_event_handler(Some(move |ev| {
+        let _ = tray_click_proxy.send_event(AppEvent::TrayEvent(ev));
+    }));
+
     let mut sync_state = SyncState::initial(demo_mode);
     let mut tray = TrayController::new(&config, registry.list(), &sync_state)?;
 
     let screen = platform::primary_screen_metrics(None);
     let init_w = match config.mode {
         DisplayMode::NotchHug => 380.0,
-        _ => 340.0,
+        _ => 380.0,
     };
-    let init_h = 64.0;
+    let init_h = 68.0;
     let init_pos = compute_window_position(&config, screen, init_w, init_h);
 
     let builder = WindowBuilder::new()
@@ -125,9 +137,9 @@ pub fn run_app(mut config: AppConfig, demo_mode: bool) -> anyhow::Result<()> {
     let window = builder.build(&event_loop)?;
     platform::configure_window(&window, config.mode);
 
-    // Re-position using the actual monitor handle (important on Windows & Linux).
-    let actual_screen = platform::primary_screen_metrics(Some(&window));
+    let actual_screen = platform::active_screen_metrics(&window);
     let actual_pos = compute_window_position(&config, actual_screen, init_w, init_h);
+    let mut last_programmatic_move = Instant::now();
     window.set_outer_position(LogicalPosition::new(actual_pos.0, actual_pos.1));
 
     let html = INDEX_HTML
@@ -163,9 +175,13 @@ pub fn run_app(mut config: AppConfig, demo_mode: bool) -> anyhow::Result<()> {
 
     let mut current_size = (init_w, init_h);
     let mut ready = false;
+    let mut pending_pos_save: Option<Instant> = None;
 
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+        *control_flow = match pending_pos_save {
+            Some(deadline) => ControlFlow::WaitUntil(deadline),
+            None => ControlFlow::Wait,
+        };
 
         match event {
             Event::UserEvent(app_ev) => match app_ev {
@@ -182,6 +198,23 @@ pub fn run_app(mut config: AppConfig, demo_mode: bool) -> anyhow::Result<()> {
                     if ready {
                         push_ui_state(&webview, &window, &sync_state, &registry, &config, None);
                     }
+                }
+                AppEvent::TrayEvent(ev) => {
+                    // On Windows & Linux, left-clicking the tray ring icon toggles Show/Hide directly.
+                    #[cfg(not(target_os = "macos"))]
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = ev
+                    {
+                        config.visible = !config.visible;
+                        window.set_visible(config.visible);
+                        let _ = config.save();
+                        tray.sync_state(&config, registry.list(), &sync_state);
+                    }
+                    #[cfg(target_os = "macos")]
+                    let _ = (ev, MouseButton::Left, MouseButtonState::Up);
                 }
                 AppEvent::MenuEvent(ev) => {
                     if let Some(action) = tray.action_for(&ev) {
@@ -211,11 +244,37 @@ pub fn run_app(mut config: AppConfig, demo_mode: bool) -> anyhow::Result<()> {
                                     );
                                 }
                             }
+                            TrayAction::ResetPosition => {
+                                pending_pos_save = None;
+                                config.widget_x = None;
+                                config.widget_y = None;
+                                if !config.visible {
+                                    config.visible = true;
+                                    window.set_visible(true);
+                                }
+                                let _ = config.save();
+                                let screen = platform::primary_screen_metrics(Some(&window));
+                                let (x, y) = compute_window_position(
+                                    &config,
+                                    screen,
+                                    current_size.0,
+                                    current_size.1,
+                                );
+                                last_programmatic_move = Instant::now();
+                                window.set_outer_position(LogicalPosition::new(x, y));
+                                tray.sync_state(&config, registry.list(), &sync_state);
+                            }
                             TrayAction::RefreshNow => {
                                 let _ = sync_tx.send(SyncCommand::RefreshNow);
                             }
                             TrayAction::SetMode(mode) => {
-                                apply_mode_change(&mut config, mode, &window, current_size);
+                                apply_mode_change(
+                                    &mut config,
+                                    mode,
+                                    &window,
+                                    current_size,
+                                    &mut last_programmatic_move,
+                                );
                                 tray.sync_state(&config, registry.list(), &sync_state);
                                 if ready {
                                     push_ui_state(
@@ -230,6 +289,21 @@ pub fn run_app(mut config: AppConfig, demo_mode: bool) -> anyhow::Result<()> {
                             }
                             TrayAction::SetPillDensity(density) => {
                                 config.pill_density = density;
+                                let _ = config.save();
+                                tray.sync_state(&config, registry.list(), &sync_state);
+                                if ready {
+                                    push_ui_state(
+                                        &webview,
+                                        &window,
+                                        &sync_state,
+                                        &registry,
+                                        &config,
+                                        None,
+                                    );
+                                }
+                            }
+                            TrayAction::ToggleMenuBarText => {
+                                config.always_show_menubar_text = !config.always_show_menubar_text;
                                 let _ = config.save();
                                 tray.sync_state(&config, registry.list(), &sync_state);
                                 if ready {
@@ -266,6 +340,9 @@ pub fn run_app(mut config: AppConfig, demo_mode: bool) -> anyhow::Result<()> {
                                 platform::open_in_file_manager(registry.skins_dir());
                             }
                             TrayAction::Quit => {
+                                if pending_pos_save.take().is_some() {
+                                    let _ = config.save();
+                                }
                                 *control_flow = ControlFlow::Exit;
                             }
                         }
@@ -281,18 +358,42 @@ pub fn run_app(mut config: AppConfig, demo_mode: bool) -> anyhow::Result<()> {
                             push_ui_state(&webview, &window, &sync_state, &registry, &config, None);
                         }
                         IpcCommand::Resize { width, height } => {
-                            let w = width.clamp(120.0, 680.0);
-                            let h = height.clamp(46.0, 820.0);
+                            let w = width.clamp(120.0, 820.0);
+                            let h = height.clamp(48.0, 820.0);
                             current_size = (w, h);
+                            last_programmatic_move = Instant::now();
                             window.set_inner_size(LogicalSize::new(w, h));
-                            let screen = platform::primary_screen_metrics(Some(&window));
+                            let screen = platform::active_screen_metrics(&window);
                             let (x, y) = compute_window_position(&config, screen, w, h);
                             window.set_outer_position(LogicalPosition::new(x, y));
                         }
                         IpcCommand::Drag => {
-                            if config.mode == DisplayMode::Widget {
+                            // Free dragging works in both Island and Widget modes on macOS & Windows.
+                            if config.mode != DisplayMode::NotchHug {
                                 let _ = window.drag_window();
                             }
+                        }
+                        IpcCommand::Hide => {
+                            pending_pos_save = None;
+                            config.visible = false;
+                            window.set_visible(false);
+                            let _ = config.save();
+                            tray.sync_state(&config, registry.list(), &sync_state);
+                        }
+                        IpcCommand::ResetPosition => {
+                            pending_pos_save = None;
+                            config.widget_x = None;
+                            config.widget_y = None;
+                            let _ = config.save();
+                            let screen = platform::primary_screen_metrics(Some(&window));
+                            let (x, y) = compute_window_position(
+                                &config,
+                                screen,
+                                current_size.0,
+                                current_size.1,
+                            );
+                            last_programmatic_move = Instant::now();
+                            window.set_outer_position(LogicalPosition::new(x, y));
                         }
                         IpcCommand::Refresh => {
                             let _ = sync_tx.send(SyncCommand::RefreshNow);
@@ -319,7 +420,13 @@ pub fn run_app(mut config: AppConfig, demo_mode: bool) -> anyhow::Result<()> {
                             }
                         }
                         IpcCommand::SetMode { mode } => {
-                            apply_mode_change(&mut config, mode, &window, current_size);
+                            apply_mode_change(
+                                &mut config,
+                                mode,
+                                &window,
+                                current_size,
+                                &mut last_programmatic_move,
+                            );
                             tray.sync_state(&config, registry.list(), &sync_state);
                             push_ui_state(&webview, &window, &sync_state, &registry, &config, None);
                         }
@@ -353,6 +460,12 @@ pub fn run_app(mut config: AppConfig, demo_mode: bool) -> anyhow::Result<()> {
                             let _ = sync_tx.send(SyncCommand::SetNotifications(enabled));
                             push_ui_state(&webview, &window, &sync_state, &registry, &config, None);
                         }
+                        IpcCommand::SetAlwaysShowMenubarText { enabled } => {
+                            config.always_show_menubar_text = enabled;
+                            let _ = config.save();
+                            tray.sync_state(&config, registry.list(), &sync_state);
+                            push_ui_state(&webview, &window, &sync_state, &registry, &config, None);
+                        }
                         IpcCommand::SetDemo { enabled } => {
                             let _ = sync_tx.send(SyncCommand::SetDemoMode(enabled));
                         }
@@ -366,18 +479,33 @@ pub fn run_app(mut config: AppConfig, demo_mode: bool) -> anyhow::Result<()> {
                 event: WindowEvent::Moved(pos),
                 ..
             } => {
-                if config.mode == DisplayMode::Widget {
+                // Persist user-dragged position (storing horizontal center so expand/collapse grows symmetrically).
+                // Debounced so 60fps dragging never thrashes disk I/O while always saving the final resting spot.
+                if config.mode != DisplayMode::NotchHug
+                    && last_programmatic_move.elapsed() > Duration::from_millis(240)
+                {
                     let scale = window.scale_factor();
                     let logical = pos.to_logical::<f64>(scale);
-                    config.widget_x = Some(logical.x);
+                    config.widget_x = Some(logical.x + current_size.0 / 2.0);
                     config.widget_y = Some(logical.y);
-                    let _ = config.save();
+                    pending_pos_save = Some(Instant::now() + Duration::from_millis(350));
+                }
+            }
+            Event::MainEventsCleared => {
+                if let Some(deadline) = pending_pos_save {
+                    if Instant::now() >= deadline {
+                        let _ = config.save();
+                        pending_pos_save = None;
+                    }
                 }
             }
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
             } => {
+                if pending_pos_save.take().is_some() {
+                    let _ = config.save();
+                }
                 *control_flow = ControlFlow::Exit;
             }
             _ => {}
@@ -390,6 +518,7 @@ fn apply_mode_change(
     mode: DisplayMode,
     window: &tao::window::Window,
     current_size: (f64, f64),
+    last_programmatic_move: &mut Instant,
 ) {
     #[cfg(not(target_os = "macos"))]
     let mode = if mode == DisplayMode::NotchHug {
@@ -399,9 +528,14 @@ fn apply_mode_change(
     };
 
     config.mode = mode;
+    if mode == DisplayMode::NotchHug {
+        config.widget_x = None;
+        config.widget_y = None;
+    }
     platform::update_window_mode(window, mode);
-    let screen = platform::primary_screen_metrics(Some(window));
+    let screen = platform::active_screen_metrics(window);
     let (x, y) = compute_window_position(config, screen, current_size.0, current_size.1);
+    *last_programmatic_move = Instant::now();
     window.set_outer_position(LogicalPosition::new(x, y));
     let _ = config.save();
 }
@@ -413,30 +547,36 @@ fn compute_window_position(
     height: f64,
 ) -> (f64, f64) {
     match config.mode {
-        DisplayMode::Island => {
-            let x = screen.origin_x + ((screen.width - width) / 2.0).round();
-            let y = screen.origin_y + 4.0;
-            (x, y)
-        }
         DisplayMode::NotchHug => {
             let x = screen.origin_x + ((screen.width - width) / 2.0).round();
             let y = screen.origin_y + 2.0;
             (x, y)
         }
-        DisplayMode::Widget => {
-            let default_x = screen.origin_x + (screen.width - width - 24.0).max(16.0);
-            let default_y = screen.origin_y + screen.menu_bar_height + 16.0;
-            let raw_x = config.widget_x.unwrap_or(default_x);
-            let raw_y = config.widget_y.unwrap_or(default_y);
-            let x = raw_x.clamp(
-                screen.origin_x + 8.0,
-                (screen.origin_x + screen.width - width - 8.0).max(8.0),
-            );
-            let y = raw_y.clamp(
-                screen.origin_y + screen.menu_bar_height + 4.0,
-                (screen.origin_y + screen.height - height - 8.0).max(40.0),
-            );
-            (x, y)
+        DisplayMode::Island | DisplayMode::Widget => {
+            let min_y = screen.origin_y + screen.menu_bar_height + 2.0;
+            let max_x = (screen.origin_x + screen.width - width - 6.0).max(screen.origin_x + 6.0);
+            let max_y = (screen.origin_y + screen.height - height - 8.0).max(min_y);
+
+            if let (Some(cx), Some(saved_y)) = (config.widget_x, config.widget_y) {
+                // Saved `widget_x` is horizontal center so expand/collapse expands symmetrically!
+                let x = (cx - width / 2.0)
+                    .round()
+                    .clamp(screen.origin_x + 6.0, max_x);
+                let y = saved_y.round().clamp(min_y, max_y);
+                return (x, y);
+            }
+
+            if config.mode == DisplayMode::Widget {
+                let x = (screen.origin_x + screen.width - width - 22.0)
+                    .clamp(screen.origin_x + 6.0, max_x);
+                let y = (min_y + 12.0).clamp(min_y, max_y);
+                (x, y)
+            } else {
+                // Default Dynamic Island: cleanly centered directly BELOW the macOS menu bar
+                // (or right near top edge on Windows where `menu_bar_height == 0.0`).
+                let x = screen.origin_x + ((screen.width - width) / 2.0).round();
+                (x, min_y)
+            }
         }
     }
 }
@@ -450,7 +590,7 @@ fn push_ui_state(
     force_expanded: Option<bool>,
 ) {
     let active_skin = registry.resolve(&config.skin_id);
-    let screen = platform::primary_screen_metrics(Some(window));
+    let screen = platform::active_screen_metrics(window);
     let payload = UiPayload {
         platform: std::env::consts::OS,
         status,

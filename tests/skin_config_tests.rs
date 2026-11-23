@@ -80,6 +80,7 @@ fn app_config_roundtrip_and_sanitization() {
         notifications: false,
         pinned_expanded: true,
         visible: true,
+        always_show_menubar_text: true,
         widget_x: Some(120.5),
         widget_y: Some(88.0),
     };
@@ -95,5 +96,6 @@ fn app_config_roundtrip_and_sanitization() {
     assert_eq!(loaded.danger_threshold, 25);
     assert!(!loaded.notifications);
     assert!(loaded.pinned_expanded);
+    assert!(loaded.always_show_menubar_text);
     assert_eq!(loaded.widget_x, Some(120.5));
 }

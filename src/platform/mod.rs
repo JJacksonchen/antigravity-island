@@ -73,6 +73,32 @@ pub fn update_window_mode(window: &Window, mode: DisplayMode) {
     }
 }
 
+/// Returns geometry metrics for the monitor currently containing `window` (falling back to primary).
+/// Enables smooth multi-monitor dragging on both macOS and Windows.
+pub fn active_screen_metrics(window: &Window) -> ScreenMetrics {
+    let primary = primary_screen_metrics(Some(window));
+    if let Some(m) = window.current_monitor() {
+        let scale = m.scale_factor();
+        let size = m.size().to_logical::<f64>(scale);
+        let pos = m.position().to_logical::<f64>(scale);
+        let is_primary =
+            (pos.x - primary.origin_x).abs() < 2.0 && (pos.y - primary.origin_y).abs() < 2.0;
+        if is_primary {
+            return primary;
+        }
+        return ScreenMetrics {
+            origin_x: pos.x,
+            origin_y: pos.y,
+            width: size.width,
+            height: size.height,
+            menu_bar_height: if cfg!(target_os = "macos") { 25.0 } else { 0.0 },
+            has_notch: false,
+            notch_width: 0.0,
+        };
+    }
+    primary
+}
+
 /// Returns geometry metrics for the primary display (including MacBook camera notch dimensions).
 pub fn primary_screen_metrics(window: Option<&Window>) -> ScreenMetrics {
     #[cfg(target_os = "macos")]

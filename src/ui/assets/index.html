@@ -86,6 +86,14 @@
                 <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
               </svg>
             </button>
+            <button class="icon-btn" id="btn-hide" title="Hide Island">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
+                <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
+                <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
+                <line x1="2" x2="22" y1="2" y2="22"/>
+              </svg>
+            </button>
           </div>
         </header>
 
@@ -155,7 +163,7 @@
         <section id="drawer-settings" class="drawer hidden">
           <div class="drawer-header">
             <span class="drawer-title" id="settings-title">Preferences</span>
-            <span class="version-tag">v0.2.0</span>
+            <span class="version-tag">v0.2.1</span>
           </div>
           <div class="studio-controls">
             <div class="control-row">
@@ -172,6 +180,17 @@
                 <button data-density="glance">Glance</button>
                 <button data-density="compact">Compact</button>
               </div>
+            </div>
+            <div class="control-row" id="row-position">
+              <label id="lbl-position">Position</label>
+              <button class="pill-btn compact-btn" id="btn-reset-pos">Top Center</button>
+            </div>
+            <div class="control-row hidden" id="row-menubar-text">
+              <label id="lbl-menubar-text">Menu Bar Text</label>
+              <label class="switch">
+                <input type="checkbox" id="chk-menubar-text" />
+                <span class="slider"></span>
+              </label>
             </div>
             <div class="control-row">
               <label id="lbl-poll">Sync Rate</label>
@@ -209,7 +228,10 @@
 
         <footer class="card-footer">
           <span id="account-label" class="account-text">Local loopback · Zero token storage</span>
-          <button class="link-btn subtle" id="btn-collapse">Collapse</button>
+          <div class="footer-actions">
+            <button class="link-btn subtle" id="btn-hide-footer">Hide</button>
+            <button class="link-btn subtle" id="btn-collapse">Collapse</button>
+          </div>
         </footer>
       </div>
     </div>

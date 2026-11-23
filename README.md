@@ -58,10 +58,11 @@ irm https://raw.githubusercontent.com/JJacksonchen/antigravity-island/main/scrip
 
 传统查看 **Google Antigravity** 配额需要切换窗口、打开 **Settings → Models** 或敲 `/usage`。**Antigravity Island** 在 macOS 和 Windows 上均坚持 **零点击、抬眼即知** 的信息层级：
 
-- **一眼看清折叠胶囊（Glance Pill，默认）**：无需悬停即可直接看到每个模型池的 **迷你环形进度条 + 剩余百分比 + 周额度小标（`7d`）+ 1 秒实时重置倒计时**，胶囊底部还自带一条全局 **环境健康度进度光轨**（充裕绿/天蓝 → 预警琥珀 → 告急脉冲红），用余光就能感知配额水位。
-- **macOS 专属双保险**：顶部居中灵动岛（支持 **Notch Hug 刘海双翼融合**）+ 原生顶部状态栏实时文字（`G 76%/67% · C 100%`）。
-- **Windows 专属双保险**：顶部置顶透明灵动岛（`WS_EX_TOOLWINDOW` + `skip_taskbar`，不占任务栏与 `Alt+Tab`、无 1px 白边、无黑框闪烁）+ **系统托盘动态彩色进度环图标**（每次配额变化自动重绘 32×32 RGBA 进度环与健康色）+ 悬停多行配额明细 Tooltip。
-- **极简模式随时切换**：在面板设置或托盘菜单中可随时切换 `Glance（一眼看清）` 与 `Compact（极简胶囊）`。
+- **双行一眼看清折叠胶囊（Glance Pill，默认）**：无需悬停即可直接读取每个模型池的 **同心双环（外环 5h + 内环周额度）**，第一行清晰标注 **`5h` 徽标 + 粗体剩余百分比 + `⏱` 5h 刷新倒计时**，第二行独立展示 **`周 / 7d` 剩余百分比 + 迷你周进度条**；胶囊底部自带全局 **环境健康度光轨**，5h 额度、周额度与倒计时彻底分离、零混淆。
+- **双端自由拖拽 + 一键隐藏**：macOS 与 Windows 无论在 `Island` 还是 `Widget` 形态下，均支持 **直接拖拽折叠胶囊或展开标题栏** 放置于任意屏幕位置（自动记忆坐标，双击标题栏或点 `居中置顶` 一键复位）；支持 **右键胶囊 / 点击眼睛图标 / 托盘菜单** 一键隐藏与恢复。
+- **macOS 零遮挡、零重复状态栏联动**：默认悬浮在 macOS 菜单栏下方清爽居中（绝不遮挡菜单栏）；灵动岛可见时，顶部菜单栏自动切换为极简图标（避免与灵动岛数值重复）；当灵动岛隐藏时，菜单栏自动显示实时额度文字（`G 65%/64% · C 100%`），亦可在设置中开启「始终显示状态栏文字」。
+- **Windows 专属双保险**：顶部置顶透明灵动岛（`WS_EX_TOOLWINDOW` + `skip_taskbar`，不占任务栏与 `Alt+Tab`、无 1px 白边、无黑框闪烁）+ **系统托盘动态彩色进度环图标**（左键托盘图标直接切换显示/隐藏，右键打开完整菜单，悬停显示多行配额与重置明细）。
+- **极简模式随时切换**：在面板设置或托盘菜单中可随时切换 `Glance（双行一眼看清）` 与 `Compact（极简胶囊）`。
 
 <p align="center">
   <img src="assets/hero-showcase.png" alt="Antigravity Island Expanded Card Showcase" width="100%"/>
@@ -94,14 +95,15 @@ irm https://raw.githubusercontent.com/JJacksonchen/antigravity-island/main/scrip
 
 | Operation / Button | Action / Behavior |
 | :--- | :--- |
-| **Hover Pill / 悬停胶囊** | `Island` / `Notch Hug` 模式下悬停 85ms 丝滑展开完整面板，移出 260ms 自动收起 |
-| **Click Pill / 单击胶囊** | 任意形态下点击展开；`Desktop Widget` 模式下短按展开、拖拽移动位置并自动记忆坐标 |
-| **`📌` Pin / 图钉** | 锁定保持展开状态，悬停移出不收起；再次点击或点 `Collapse` 收起 |
+| **Hover Pill / 悬停胶囊** | `Island` / `Notch Hug` 模式下悬停 180ms 丝滑展开完整面板，移出 260ms 自动收起 |
+| **Drag Pill or Header / 自由拖拽** | macOS 与 Windows 的 `Island` / `Widget` 形态均支持按住胶囊或标题栏任意拖动并记忆位置，双击标题栏恢复顶部居中 |
+| **Right-Click Pill or `👁` Hide / 一键隐藏** | 右键折叠胶囊或点击展开卡片右上角/底部隐藏按钮即可隐藏；Windows 左键托盘图标或 macOS/Win 托盘菜单可随时恢复 |
+| **`📌` Pin / 图钉** | 锁定保持展开状态，悬停移出不收起；再次点击或点 `收起` 折叠 |
 | **`↻` Refresh / 刷新** | 立即向本地 Antigravity 后台发起一次最新配额查询 |
-| **`◫` Mode / 形态切换** | 一键切换 **Dynamic Island**（顶部居中）、**Notch Hug**（macOS 刘海融合）与 **Desktop Widget**（桌面自由拖拽） |
+| **`◫` Mode / 形态切换** | 一键切换 **Dynamic Island**（悬停展开·可拖拽）、**Notch Hug**（macOS 刘海融合）与 **Desktop Widget**（点击展开·可拖拽） |
 | **`🎨` Skin Studio / 皮肤工坊** | 实时切换 6 套内置皮肤或自定义仪表样式、强调色、圆角、透明度、呼吸光晕，一键保存为 `.toml` |
-| **`⚙` Settings / 偏好设置** | 切换形态、胶囊信息密度（`Glance / Compact`）、刷新间隔（`5s / 15s / 30s / 60s`）、界面语言（`Auto / 中文 / EN`）与低额度提醒 |
-| **Tray / Menu Bar** | macOS 菜单栏常驻数值；Windows 托盘实时彩色进度环 + 悬停明细，右键可隐藏/锁定/换肤/退出 |
+| **`⚙` Settings / 偏好设置** | 切换形态、胶囊信息密度（`Glance / Compact`）、重置居中置顶、macOS 状态栏文字开关、刷新间隔、语言与低额度提醒 |
+| **Tray / Menu Bar** | macOS 隐藏时自动接管显示实时额度，显示时自动切回极简图标；Windows 托盘彩色进度环左键显隐、右键菜单 |
 
 ---
 

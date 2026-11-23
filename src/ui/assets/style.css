@@ -47,7 +47,7 @@ html, body {
   display: inline-flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 10px 14px 16px;
+  padding: 6px 14px 14px;
   width: max-content;
 }
 
@@ -82,7 +82,7 @@ html, body {
 }
 
 .stage[data-expanded="true"] .island-shell {
-  width: 372px;
+  width: 388px;
   background: var(--bg-expanded);
   border-radius: var(--card-radius);
 }
@@ -108,20 +108,30 @@ html, body {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  height: 38px;
-  padding: 0 13px 2px;
+  height: 46px;
+  padding: 0 12px 3px;
   cursor: pointer;
   white-space: nowrap;
 }
 
+.stage.mode-island .pill-view,
+.stage.mode-widget .pill-view {
+  cursor: grab;
+}
+
+.stage.mode-island .pill-view:active,
+.stage.mode-widget .pill-view:active {
+  cursor: grabbing;
+}
+
 .stage.density-compact .pill-view {
   height: 34px;
-  padding: 0 12px 1px;
+  padding: 0 12px 2px;
 }
 
 .stage.mode-notch_hug .pill-view {
   height: 34px;
-  padding: 0 12px 1px;
+  padding: 0 12px 2px;
 }
 
 .pill-ambient-rail {
@@ -190,16 +200,161 @@ html, body {
 
 .pill-divider {
   width: 1px;
-  height: 16px;
+  height: 24px;
   background: var(--border);
-  opacity: 0.7;
+  opacity: 0.68;
   margin: 0 1px;
 }
 
+/* Dual-row At-a-Glance Module (5h + countdown on Row 1, Weekly + bar on Row 2) */
+.glance-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 9px 3px 4px;
+  border-radius: 13px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
+}
+
+.dual-ring {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dual-ring svg {
+  transform: rotate(-90deg);
+  display: block;
+}
+
+.dual-ring-code {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.glance-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  line-height: 1;
+}
+
+.glance-row-5h {
+  display: flex;
+  align-items: center;
+  gap: 4.5px;
+}
+
+.tag-5h {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 800;
+  padding: 1.5px 4px;
+  border-radius: 4px;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+.val-5h {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.timer-5h {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  opacity: 0.9;
+  padding: 1.5px 5px;
+  border-radius: 5px;
+  background: var(--track-bg);
+  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  line-height: 1.1;
+}
+
+.timer-5h svg {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.timer-5h.soon {
+  color: var(--ok-color);
+  background: color-mix(in srgb, var(--ok-color) 15%, transparent);
+  border-color: color-mix(in srgb, var(--ok-color) 36%, transparent);
+  opacity: 1;
+}
+
+.timer-5h.full {
+  color: var(--ok-color);
+  background: color-mix(in srgb, var(--ok-color) 11%, transparent);
+  border-color: color-mix(in srgb, var(--ok-color) 25%, transparent);
+  opacity: 0.92;
+}
+
+.glance-row-wk {
+  display: flex;
+  align-items: center;
+  gap: 4.5px;
+}
+
+.tag-wk {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  min-width: 14px;
+}
+
+.val-wk {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  opacity: 0.92;
+  min-width: 28px;
+}
+
+.wk-bar-track {
+  width: 44px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--track-bg);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.wk-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Single-row Notch Hug chip */
 .glance-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   padding: 2px 6px 2px 3px;
   border-radius: 999px;
   background: var(--surface);
@@ -226,7 +381,7 @@ html, body {
 
 .glance-code {
   font-size: 10.5px;
-  font-weight: 700;
+  font-weight: 750;
   letter-spacing: 0.02em;
 }
 
@@ -238,22 +393,16 @@ html, body {
   color: var(--text-primary);
 }
 
-.glance-sub {
+.glance-sub-badge {
   font-family: var(--font-mono);
   font-size: 9.5px;
   font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.glance-sub-badge {
   padding: 0.5px 4px;
   border-radius: 5px;
   background: var(--track-bg);
-  color: var(--text-secondary);
-  font-weight: 600;
+  color: var(--text-primary);
+  opacity: 0.88;
+  font-weight: 650;
 }
 
 .pill-chip {
@@ -318,10 +467,12 @@ html, body {
   gap: 8px;
 }
 
+.stage.mode-island .card-header,
 .stage.mode-widget .card-header {
   cursor: grab;
 }
 
+.stage.mode-island .card-header:active,
 .stage.mode-widget .card-header:active {
   cursor: grabbing;
 }
@@ -462,6 +613,13 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 5px;
+  padding: 2px 0;
+}
+
+.bucket-row + .bucket-row,
+.ring-row + .ring-row {
+  padding-top: 8px;
+  border-top: 1px dashed color-mix(in srgb, var(--border) 52%, transparent);
 }
 
 .bucket-top {
@@ -482,15 +640,24 @@ html, body {
 .cadence-pill {
   font-family: var(--font-mono);
   font-size: 9.5px;
-  font-weight: 700;
-  padding: 1px 5px;
+  font-weight: 800;
+  padding: 1.5px 5.5px;
   border-radius: 6px;
   background: var(--track-bg);
   color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.cadence-pill.cadence-wk {
+  color: var(--text-primary);
+  opacity: 0.85;
 }
 
 .bucket-label {
-  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  opacity: 0.92;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -506,6 +673,7 @@ html, body {
 .pace-tag {
   font-family: var(--font-mono);
   font-size: 9.5px;
+  font-weight: 650;
   padding: 1px 5px;
   border-radius: 5px;
 }
@@ -520,20 +688,71 @@ html, body {
   background: color-mix(in srgb, var(--warn-color) 15%, transparent);
 }
 
-.reset-timer {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
-}
-
 .pct-text {
   font-family: var(--font-mono);
-  font-size: 11.5px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
-  min-width: 34px;
+  min-width: 38px;
   text-align: right;
+}
+
+.bucket-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 1px;
+}
+
+.reset-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  opacity: 0.9;
+  padding: 2px 6.5px;
+  border-radius: 6px;
+  background: var(--track-bg);
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+.reset-pill svg {
+  flex-shrink: 0;
+  opacity: 0.88;
+}
+
+.reset-pill.is-5h {
+  background: color-mix(in srgb, var(--accent-gemini) 11%, var(--track-bg));
+  border-color: color-mix(in srgb, var(--accent-gemini) 24%, transparent);
+}
+
+.reset-pill.soon {
+  color: var(--ok-color);
+  background: color-mix(in srgb, var(--ok-color) 14%, transparent);
+  border-color: color-mix(in srgb, var(--ok-color) 34%, transparent);
+  opacity: 1;
+}
+
+.reset-pill.full {
+  color: var(--ok-color);
+  background: color-mix(in srgb, var(--ok-color) 10%, transparent);
+  border-color: color-mix(in srgb, var(--ok-color) 22%, transparent);
+  opacity: 0.92;
+}
+
+.reset-clock {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 550;
+  color: var(--text-secondary);
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* Gauge styles */
@@ -617,8 +836,8 @@ html, body {
 
 .ring-wrap {
   position: relative;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   flex-shrink: 0;
 }
 
@@ -633,8 +852,8 @@ html, body {
   align-items: center;
   justify-content: center;
   font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 700;
+  font-size: 9.5px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 
@@ -643,7 +862,7 @@ html, body {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 5px;
 }
 
 /* ---------- Offline Card ---------- */
@@ -922,11 +1141,25 @@ html, body {
   transform: translateX(13px);
 }
 
+.pill-btn.compact-btn {
+  padding: 3.5px 9px;
+  font-size: 10px;
+  border-radius: 7px;
+}
+
 .card-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding-top: 2px;
+}
+
+.footer-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .account-text {
@@ -935,5 +1168,5 @@ html, body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 260px;
+  max-width: 230px;
 }
