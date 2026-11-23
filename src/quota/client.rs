@@ -370,16 +370,22 @@ async fn fetch_via_agy_print_usage(agy_bin: &std::path::Path) -> Result<QuotaSna
         std::env::temp_dir().join(format!("antigravity-island-probe-{}", std::process::id()));
     let _ = tokio::fs::create_dir_all(&tmp_dir).await;
 
-    let output = tokio::time::timeout(
-        Duration::from_secs(15),
-        Command::new(agy_bin)
-            .args(["-p", "/usage", "--output-format", "json"])
-            .current_dir(&tmp_dir)
-            .env("AGY_CLI_DISABLE_AUTO_UPDATE", "true")
-            .env("BROWSER", "/usr/bin/false")
-            .output(),
-    )
-    .await??;
+    let mut cmd = Command::new(agy_bin);
+    cmd.args(["-p", "/usage", "--output-format", "json"])
+        .current_dir(&tmp_dir)
+        .env("AGY_CLI_DISABLE_AUTO_UPDATE", "true");
+
+    #[cfg(target_os = "windows")]
+    {
+        cmd.env("BROWSER", "cmd /c exit 1")
+            .creation_flags(0x0800_0000);
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        cmd.env("BROWSER", "/usr/bin/false");
+    }
+
+    let output = tokio::time::timeout(Duration::from_secs(15), cmd.output()).await??;
 
     let _ = tokio::fs::remove_dir_all(&tmp_dir).await;
 

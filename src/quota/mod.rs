@@ -265,26 +265,76 @@ impl QuotaSnapshot {
         metrics
     }
 
-    /// Concise string for macOS menu bar tray label (e.g., "G 86% · C 100%").
+    /// Concise string for macOS menu bar tray label (e.g., "G 76%·67% | C 100%").
     pub fn tray_summary(&self) -> String {
-        let highlights = self.compact_highlights();
-        if highlights.is_empty() {
+        let mut parts = Vec::new();
+        for group in self.groups.iter().take(2) {
+            let code = match group.accent_key.as_str() {
+                "gemini" => "G",
+                "claude" => "C",
+                "argon" => "A",
+                _ => "M",
+            };
+            let five_h = group
+                .buckets
+                .iter()
+                .find(|b| matches!(b.cadence, Cadence::FiveHour | Cadence::Session))
+                .and_then(|b| b.remaining_percent());
+            let weekly = group
+                .buckets
+                .iter()
+                .find(|b| matches!(b.cadence, Cadence::Weekly))
+                .and_then(|b| b.remaining_percent());
+
+            match (five_h, weekly) {
+                (Some(s), Some(w)) if s != w => parts.push(format!("{code} {s}%/{w}%")),
+                (Some(s), _) => parts.push(format!("{code} {s}%")),
+                (None, Some(w)) => parts.push(format!("{code} {w}%")),
+                (None, None) => {}
+            }
+        }
+        if parts.is_empty() {
             return "AGY --".to_string();
         }
-        highlights
-            .iter()
-            .take(2)
-            .map(|m| {
-                let code = match m.accent_key.as_str() {
-                    "gemini" => "G",
-                    "claude" => "C",
-                    "argon" => "A",
-                    _ => "M",
-                };
-                format!("{code} {}%", m.percent)
-            })
-            .collect::<Vec<_>>()
-            .join(" · ")
+        parts.join(" · ")
+    }
+
+    /// Rich multi-line tooltip for Windows/Linux/macOS system tray hover.
+    pub fn tray_tooltip(&self, now: DateTime<Utc>) -> String {
+        let plan = self.account_plan.as_deref().unwrap_or("Antigravity");
+        let mut lines = vec![format!("Antigravity Island — {plan}")];
+        for group in &self.groups {
+            let mut bucket_strs = Vec::new();
+            for b in &group.buckets {
+                if let Some(pct) = b.remaining_percent() {
+                    let reset_part = b
+                        .reset_time
+                        .map(|dt| {
+                            let secs = (dt - now).num_seconds().max(0);
+                            if secs >= 86_400 {
+                                format!(" ({}d {}h)", secs / 86_400, (secs % 86_400) / 3600)
+                            } else if secs >= 3600 {
+                                format!(" ({}h {:02}m)", secs / 3600, (secs % 3600) / 60)
+                            } else {
+                                format!(" ({}m)", secs / 60)
+                            }
+                        })
+                        .unwrap_or_default();
+                    bucket_strs.push(format!("{} {pct}%{reset_part}", b.cadence.short_tag()));
+                }
+            }
+            if !bucket_strs.is_empty() {
+                lines.push(format!(
+                    "{}: {}",
+                    group.short_label,
+                    bucket_strs.join(" · ")
+                ));
+            }
+        }
+        if let Some(cr) = self.ai_credits {
+            lines.push(format!("AI Credits: {:.0}", cr));
+        }
+        lines.join("\n")
     }
 }
 

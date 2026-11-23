@@ -3,6 +3,9 @@
 #[cfg(target_os = "macos")]
 pub mod macos;
 
+#[cfg(target_os = "windows")]
+pub mod windows;
+
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -36,12 +39,21 @@ impl Default for ScreenMetrics {
     }
 }
 
+/// On Windows GUI-subsystem release builds, re-attaches the parent console when CLI flags are passed.
+pub fn attach_parent_console_if_cli() {
+    #[cfg(target_os = "windows")]
+    windows::attach_parent_console_if_cli();
+}
+
 /// Applies native transparent floating island/widget properties to the `tao` window.
 pub fn configure_window(window: &Window, mode: DisplayMode) {
     #[cfg(target_os = "macos")]
     macos::configure_window(window, mode);
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    windows::configure_window(window, mode);
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         let _ = (window, mode);
     }
@@ -52,7 +64,10 @@ pub fn update_window_mode(window: &Window, mode: DisplayMode) {
     #[cfg(target_os = "macos")]
     macos::update_window_mode(window, mode);
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    windows::update_window_mode(window, mode);
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         let _ = (window, mode);
     }
@@ -65,7 +80,11 @@ pub fn primary_screen_metrics(window: Option<&Window>) -> ScreenMetrics {
         let _ = window;
         macos::primary_screen_metrics()
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        windows::primary_screen_metrics(window)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         if let Some(w) = window {
             if let Some(m) = w.primary_monitor().or_else(|| w.current_monitor()) {
@@ -104,15 +123,15 @@ pub fn send_notification(title: &str, body: &str) {
                 .args(["-e", &script])
                 .output();
         }
+        #[cfg(target_os = "windows")]
+        {
+            windows::send_notification(&title, &body);
+        }
         #[cfg(target_os = "linux")]
         {
             let _ = std::process::Command::new("notify-send")
                 .args([&title, &body])
                 .output();
-        }
-        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-        {
-            let _ = (title, body);
         }
     });
 }
@@ -127,13 +146,13 @@ pub fn open_in_file_manager(path: &Path) {
                 .arg(&target)
                 .spawn();
         }
+        #[cfg(target_os = "windows")]
+        {
+            windows::open_in_file_manager(&target);
+        }
         #[cfg(target_os = "linux")]
         {
             let _ = std::process::Command::new("xdg-open").arg(&target).spawn();
-        }
-        #[cfg(target_os = "windows")]
-        {
-            let _ = std::process::Command::new("explorer").arg(&target).spawn();
         }
     });
 }

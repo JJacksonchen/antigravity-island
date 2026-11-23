@@ -1,65 +1,75 @@
 # Antigravity Island
 
 <p align="center">
-  <strong>A lightweight, pure-Rust Dynamic Island &amp; desktop quota widget for Google Antigravity — featuring instant local loopback sync, 3 floating morphologies, and hot-reloadable custom skins.</strong><br/>
-  <strong>纯 Rust 编写的高性能 Google Antigravity 灵动岛 / 桌面悬浮额度监控插件，支持毫秒级本地实时同步、三种桌面形态与热重载自定义皮肤。</strong>
+  <strong>A lightweight, pure-Rust Dynamic Island &amp; desktop quota widget for Google Antigravity on macOS &amp; Windows — engineered for instant at-a-glance readability, local loopback sync, and hot-reloadable custom skins.</strong><br/>
+  <strong>纯 Rust 编写的高性能 Google Antigravity 双端（macOS / Windows）灵动岛与桌面额度悬浮插件：抬眼即知剩余额度，毫秒级本地实时同步，支持热重载自定义皮肤。</strong>
 </p>
 
 <p align="center">
   <img alt="Rust" src="https://img.shields.io/badge/Rust-1.91%2B-orange?logo=rust"/>
-  <img alt="Platform" src="https://img.shields.io/badge/Platform-macOS%20(Apple%20Silicon%20%2F%20Intel)%20%7C%20Linux-blue"/>
-  <img alt="Binary Size" src="https://img.shields.io/badge/Release%20Binary-7.2%20MB-brightgreen"/>
+  <img alt="Platform" src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%2010%2F11%20%7C%20Linux-blue"/>
+  <img alt="Binary Size" src="https://img.shields.io/badge/Release%20Binary-7.3%20MB-brightgreen"/>
   <img alt="License" src="https://img.shields.io/badge/License-MIT-green"/>
 </p>
 
 <p align="center">
-  <img src="assets/hero-showcase.png" alt="Antigravity Island Product Showcase" width="100%"/>
+  <img src="assets/cross-platform-glance.png" alt="Antigravity Island At-a-Glance Dual-Platform Design (macOS & Windows)" width="100%"/>
 </p>
 
 ---
 
-## One-Click Install & Deploy / 一键部署安装
+## One-Click Install & Deploy / 双端一键部署安装
 
-### macOS（预编译极速安装 / 自动回退源码构建）
+### macOS（Apple Silicon / Intel）
 
-打开终端运行以下命令即可全自动安装 CLI 二进制、`Antigravity Island.app`（`LSUIElement = true`，不占用 Dock 栏图标），并初始化皮肤目录后自动启动：
+自动下载 GitHub Releases 最新预编译二进制（无须编译，若不可用自动回退 `cargo` 源码构建），安装 CLI + `Antigravity Island.app`（`LSUIElement = true`，不占 Dock 栏图标）并立即启动：
 
 ```bash
+# 一键安装并立即启动
 curl -fsSL https://raw.githubusercontent.com/JJacksonchen/antigravity-island/main/scripts/install.sh | bash
-```
 
-**常用部署变体 / Options：**
-
-```bash
 # 一键安装 + 配置 macOS 开机自启动 (LaunchAgent)
 curl -fsSL https://raw.githubusercontent.com/JJacksonchen/antigravity-island/main/scripts/install.sh | bash -s -- --autostart
 
-# 强制从源码本地编译安装（需已安装 Rust toolchain）
-curl -fsSL https://raw.githubusercontent.com/JJacksonchen/antigravity-island/main/scripts/install.sh | bash -s -- --from-source
-
-# 仅安装、暂不自动打开应用
-curl -fsSL https://raw.githubusercontent.com/JJacksonchen/antigravity-island/main/scripts/install.sh | bash -s -- --no-launch
-
-# 一键卸载（追加 --purge-config 可同时清理 ~/.config/antigravity-island）
+# 一键卸载（加 --purge-config 同时清理配置文件）
 curl -fsSL https://raw.githubusercontent.com/JJacksonchen/antigravity-island/main/scripts/uninstall.sh | bash
 ```
 
-> **Tip**: 尚未安装 Antigravity 或想先体验全部皮肤与动画？安装后直接运行 `antigravity-island --demo` 即可进入模拟额度流预览模式。
+### Windows 10 / 11（PowerShell）
+
+自动下载预编译 `antigravity-island-windows-x86_64.zip`（无须 Rust 环境，或传 `-FromSource` 本地编译），安装至 `%LOCALAPPDATA%\AntigravityIsland`、自动加入用户 `PATH`、创建开始菜单快捷方式并无黑框后台启动：
+
+```powershell
+# 一键安装并立即启动
+irm https://raw.githubusercontent.com/JJacksonchen/antigravity-island/main/scripts/install.ps1 | iex
+
+# 一键安装 + 配置 Windows 开机自启动 (HKCU\...\Run)
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/JJacksonchen/antigravity-island/main/scripts/install.ps1))) -Autostart
+
+# 一键卸载（加 -PurgeConfig 同时清理配置目录）
+irm https://raw.githubusercontent.com/JJacksonchen/antigravity-island/main/scripts/uninstall.ps1 | iex
+```
+
+> **Tip**：尚未打开 Antigravity 时，可运行 `antigravity-island --demo` 立即体验实时动画额度流与全部皮肤效果。
 
 ---
 
-## Why Antigravity Island? / 解决什么痛点？
+## At-a-Glance Dual-Platform Design / 双端「看一眼就知道额度」设计
 
-在 **Google Antigravity** 中查看模型剩余配额与重置倒计时，通常需要切回主窗口、打开 **Settings → Models** 面板或运行 `/usage`。**Antigravity Island** 将所有模型池额度直接悬浮于屏幕顶部「灵动岛」与菜单栏中：
+传统查看 **Google Antigravity** 配额需要切换窗口、打开 **Settings → Models** 或敲 `/usage`。**Antigravity Island** 在 macOS 和 Windows 上均坚持 **零点击、抬眼即知** 的信息层级：
 
-- **Zero-click glanceability / 零点击抬眼可见**：顶部折叠胶囊实时展示核心模型池剩余百分比（如 `G 80% · C 100%`），鼠标轻停即可丝滑展开完整面板，点击图钉按钮可常驻锁定。
-- **Accurate, timely local sync / 精准实时同步**：直连本地 Antigravity 语言服务（兼容 Antigravity 2.34+ `daemon/hub_*.json` 与传统 `--csrf_token` Connect-RPC），并被动监听 `~/.gemini/antigravity/` 会话活动与配额窗口重置时刻，在对话完成或倒计时归零时自动触发即时刷新。
-- **Hot-reloadable Skin Studio / 内置皮肤工坊 + 热重载**：自带 6 套精选皮肤与 4 种仪表渲染器（`ring` 圆环 / `bar` 液态条 / `segments` 分段格 / `wave` 动态波浪），支持面板内实时调色保存，或直接编辑 `~/.config/antigravity-island/skins/*.toml` 与 `custom_css` 即刻生效。
-- **Pure Rust performance / 纯 Rust 极简轻量**：无 Electron / Node 运行时负担；Release 二进制仅 **7.2 MB**，包含系统原生 WKWebView 常驻内存约 **67–77 MB RSS**，空闲时 **0.0% CPU**。
+- **一眼看清折叠胶囊（Glance Pill，默认）**：无需悬停即可直接看到每个模型池的 **迷你环形进度条 + 剩余百分比 + 周额度小标（`7d`）+ 1 秒实时重置倒计时**，胶囊底部还自带一条全局 **环境健康度进度光轨**（充裕绿/天蓝 → 预警琥珀 → 告急脉冲红），用余光就能感知配额水位。
+- **macOS 专属双保险**：顶部居中灵动岛（支持 **Notch Hug 刘海双翼融合**）+ 原生顶部状态栏实时文字（`G 76%/67% · C 100%`）。
+- **Windows 专属双保险**：顶部置顶透明灵动岛（`WS_EX_TOOLWINDOW` + `skip_taskbar`，不占任务栏与 `Alt+Tab`、无 1px 白边、无黑框闪烁）+ **系统托盘动态彩色进度环图标**（每次配额变化自动重绘 32×32 RGBA 进度环与健康色）+ 悬停多行配额明细 Tooltip。
+- **极简模式随时切换**：在面板设置或托盘菜单中可随时切换 `Glance（一眼看清）` 与 `Compact（极简胶囊）`。
+
+<p align="center">
+  <img src="assets/hero-showcase.png" alt="Antigravity Island Expanded Card Showcase" width="100%"/>
+</p>
 
 ---
 
-## 6 Built-in Skins / 内置皮肤展示
+## 6 Built-in Skins / 内置皮肤与仪表展示
 
 <p align="center">
   <img src="assets/skins-gallery.png" alt="Antigravity Island 6 Built-in Skins Gallery" width="100%"/>
@@ -68,7 +78,7 @@ curl -fsSL https://raw.githubusercontent.com/JJacksonchen/antigravity-island/mai
 | Skin ID | Name | Gauge Style | Aesthetic & Highlights |
 | :--- | :--- | :--- | :--- |
 | `obsidian` | **Obsidian Island** | `ring` | 经典哑光黑 Apple 灵动岛风格，清晰 SVG 圆环与低占用呼吸灯 |
-| `frosted-glass` | **Liquid Glass** | `bar` | macOS 毛玻璃半透明磨砂质感，带高光边缘与渐变进度条 |
+| `frosted-glass` | **Liquid Glass** | `bar` | 毛玻璃半透明磨砂质感，带高光边缘与渐变进度条 |
 | `cyber-neon` | **Cyber Neon** | `segments` | 赛博霓虹 HUD，青/品红 12 格发光激光分段条 |
 | `matcha-paper` | **Matcha Paper** | `bar` | 日间暖调和纸手账风格，抹茶绿与赤陶橙护眼配色 |
 | `solar-aurora` | **Solar Aurora** | `wave` | 极光渐变背景搭配动态 SVG 波浪液态能量条 |
@@ -82,18 +92,16 @@ curl -fsSL https://raw.githubusercontent.com/JJacksonchen/antigravity-island/mai
   <img src="assets/operation-guide.png" alt="Antigravity Island Detailed Operation Guide" width="100%"/>
 </p>
 
-### 1. 交互与工具栏说明 / Interactions & Toolbar
-
 | Operation / Button | Action / Behavior |
 | :--- | :--- |
-| **Hover Pill / 悬停胶囊** | 在 `Island` / `Notch Hug` 模式下悬停 85ms 丝滑展开完整面板，移出 260ms 自动收起 |
-| **Click Pill / 单击胶囊** | 在任何模式下立即展开面板（`Desktop Widget` 模式下支持单击展开、拖拽移动位置） |
+| **Hover Pill / 悬停胶囊** | `Island` / `Notch Hug` 模式下悬停 85ms 丝滑展开完整面板，移出 260ms 自动收起 |
+| **Click Pill / 单击胶囊** | 任意形态下点击展开；`Desktop Widget` 模式下短按展开、拖拽移动位置并自动记忆坐标 |
 | **`📌` Pin / 图钉** | 锁定保持展开状态，悬停移出不收起；再次点击或点 `Collapse` 收起 |
 | **`↻` Refresh / 刷新** | 立即向本地 Antigravity 后台发起一次最新配额查询 |
-| **`◫` Mode / 形态切换** | 一键在 **Dynamic Island**（顶部居中）、**Notch Hug**（MacBook 刘海双翼融合）与 **Desktop Widget**（桌面自由拖拽悬浮窗）之间切换 |
-| **`🎨` Skin Studio / 皮肤工坊** | 打开内置皮肤切换网格与实时调色器（仪表样式、强调色、圆角、透明度、呼吸光晕），一键保存为 `.toml` |
-| **`⚙` Settings / 偏好设置** | 切换展示形态、同步刷新间隔（`5s / 15s / 30s / 60s`）、界面语言（`Auto / 中文 / EN`）、低额度弹窗通知与演示模式 |
-| **Menu Bar Tray / 顶部菜单栏** | 状态栏实时显示 `G 80% · C 100%`，右键/点击可隐藏岛体、锁定展开、切换皮肤、打开皮肤目录或退出 |
+| **`◫` Mode / 形态切换** | 一键切换 **Dynamic Island**（顶部居中）、**Notch Hug**（macOS 刘海融合）与 **Desktop Widget**（桌面自由拖拽） |
+| **`🎨` Skin Studio / 皮肤工坊** | 实时切换 6 套内置皮肤或自定义仪表样式、强调色、圆角、透明度、呼吸光晕，一键保存为 `.toml` |
+| **`⚙` Settings / 偏好设置** | 切换形态、胶囊信息密度（`Glance / Compact`）、刷新间隔（`5s / 15s / 30s / 60s`）、界面语言（`Auto / 中文 / EN`）与低额度提醒 |
+| **Tray / Menu Bar** | macOS 菜单栏常驻数值；Windows 托盘实时彩色进度环 + 悬停明细，右键可隐藏/锁定/换肤/退出 |
 
 ---
 
@@ -103,23 +111,24 @@ curl -fsSL https://raw.githubusercontent.com/JJacksonchen/antigravity-island/mai
   <img src="assets/skin-studio-sync.png" alt="Skin Studio and Real-Time Local Sync Architecture" width="100%"/>
 </p>
 
-### Local Sync Pipeline / 本地同步链路
+### Local Sync Pipeline / 双端本地同步链路
 
 ```mermaid
 flowchart LR
-    A["Antigravity 2.34+ App<br/>(daemon/hub_*.json)"] --> D["Discovery & Cache"]
-    B["Antigravity IDE / Legacy App<br/>(ps --csrf_token + lsof)"] --> D
-    C["agy CLI<br/>(statusLine / agy -p /usage)"] --> D
+    A["Antigravity 2.34+ App (macOS & Win)<br/>~/.gemini/antigravity/daemon/hub_*.json"] --> D["Discovery & Cache"]
+    B["Antigravity IDE / Legacy App<br/>ps / Win32_Process + lsof / netstat"] --> D
+    C["agy CLI<br/>statusLine / agy -p /usage"] --> D
     D --> E["Loopback Connect-RPC Client<br/>127.0.0.1 + .no_proxy()"]
     F["FS Activity Watcher<br/>~/.gemini/antigravity/*"] -->|"2.2s Debounce"| E
     G["Reset-Zero Timer"] -->|"Auto Refresh"| E
     E --> H["QuotaSyncEngine (Tokio)"]
-    H --> I["Dynamic Island + Menu Bar Tray"]
+    H --> I["Glance Pill + Expanded Card + OS Tray"]
 ```
 
-1. **优先直连本地 RPC**：读取 Antigravity 2.34+ 写入的 `~/.gemini/antigravity/daemon/hub_*.json`（校验 PID 存活后直接获取端口与 CSRF Token，无需 `lsof` 子进程），或兼容旧版 `--csrf_token` 进程发现。
+1. **双端零配置自动发现**：优先读取 Antigravity 2.34+ 写入的 `~/.gemini/antigravity/daemon/hub_*.json`（Windows 为 `%USERPROFILE%\.gemini\antigravity\daemon\hub_*.json`），校验进程 PID 存活后直连本地端口；同时兼容传统 `--csrf_token` 进程发现（macOS `ps` + `lsof`，Windows `Win32_Process` + `netstat`，全程 `CREATE_NO_WINDOW` 静默无黑框）。
 2. **三段式优雅回退**：`RetrieveUserQuotaSummary`（获取完整 5h / Weekly 分组池）+ `GetUserStatus`（补充账号 Tier / AI Credits）→ `GetUserStatus` 模型配额 → `GetCommandModelConfigs` → CLI `statusLine` / `agy -p /usage`。
-3. **绕过系统代理**：内置 `.no_proxy()`，即使本机开启了 HTTP/SOCKS 代理（如 Clash/Surge `127.0.0.1:7897`），本地回环 RPC 也不会被误拦截。
+3. **绕过系统代理**：回环客户端内置 `.no_proxy()`，即使开启 Clash / Surge / 系统代理也不会拦截 `127.0.0.1` RPC。
+4. **轻量高性能**：纯 Rust 单文件 Release 二进制约 **7.3 MB**，系统原生 WebView（macOS WKWebView / Windows WebView2）常驻内存约 **67–77 MB RSS**，空闲 **0.0% CPU**。
 
 ---
 
@@ -140,21 +149,15 @@ Commands:
   ingest-statusline      从 stdin 读取 Antigravity CLI statusLine JSON 并推送给灵动岛
 ```
 
-### Example: Terminal Quick Probe / 终端快速查额度
-
-```bash
-antigravity-island --probe
-```
-
 ### Example: Wire into `agy` CLI `statusLine`
 
-如果你在终端使用 Antigravity CLI (`agy`)，可在 `~/.gemini/antigravity-cli/settings.json` 中添加：
+在 `~/.gemini/antigravity-cli/settings.json` 中添加：
 
 ```json
 {
   "statusLine": {
     "type": "command",
-    "command": "~/.local/bin/antigravity-island ingest-statusline"
+    "command": "antigravity-island ingest-statusline"
   }
 }
 ```
@@ -163,50 +166,7 @@ antigravity-island --probe
 
 ## Authoring Custom Skins / 手写自定义皮肤
 
-所有自定义皮肤存放在 `~/.config/antigravity-island/skins/*.toml`。文件保存后由 `notify` 文件监听器毫秒级热重载，无需重启应用；若自定义皮肤的 `id` 与内置皮肤一致，则会直接覆盖该内置皮肤。参考模板：[`skins/cyberpunk-neon-sample.toml`](skins/cyberpunk-neon-sample.toml)。
-
-```toml
-id = "cyberpunk-custom"
-name = "Cyberpunk Custom"
-author = "You"
-description = "High-contrast synthwave HUD"
-
-[palette]
-bg = "rgba(8, 7, 20, 0.94)"
-bg_expanded = "rgba(10, 8, 24, 0.96)"
-surface = "rgba(0, 245, 212, 0.06)"
-border = "rgba(0, 245, 212, 0.36)"
-text_primary = "#ecfeff"
-text_secondary = "#a5f3fc"
-text_muted = "#67e8f9"
-accent_gemini = "#00f5d4"
-accent_claude = "#ff4ecd"
-accent_argon = "#a78bfa"
-ok_color = "#00f5d4"
-warn_color = "#fde047"
-danger_color = "#ff2a6d"
-track_bg = "rgba(0, 245, 212, 0.14)"
-
-[geometry]
-pill_radius_px = 14
-card_radius_px = 18
-border_width_px = 1.25
-blur_px = 18
-scale = 1.0
-
-[style]
-gauge = "segments" # "ring" | "bar" | "segments" | "wave"
-glow = true
-glow_intensity = 0.85
-animations = true
-noise_overlay = false
-
-custom_css = """
-.island-shell {
-  background-image: radial-gradient(circle at 15% 0%, rgba(255, 78, 205, 0.14), transparent 45%);
-}
-"""
-```
+自定义皮肤位于 `~/.config/antigravity-island/skins/*.toml`（Windows 位于 `%USERPROFILE%\.config\antigravity-island\skins\*.toml`），编辑保存后毫秒级热重载，无需重启。参考模板：[`skins/cyberpunk-neon-sample.toml`](skins/cyberpunk-neon-sample.toml)。
 
 ---
 
@@ -216,19 +176,19 @@ custom_css = """
 git clone https://github.com/JJacksonchen/antigravity-island.git
 cd antigravity-island
 
-# Format, lint & run all 18 unit/integration tests
+# Format, lint & run all 19 unit/integration tests
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test
 
-# Package macOS .app bundle locally
+# macOS: package .app bundle locally
 ./scripts/bundle-macos.sh
 open "Antigravity Island.app"
 ```
 
 ### Privacy & Security / 隐私与安全声明
 
-- 所有本地请求严格校验目标主机必须为 `127.0.0.1`，绝不向任何外部域名传输本机 CSRF Token。
+- 所有本地请求严格校验目标主机必须为 `127.0.0.1`，绝不向外部域名传输本机 CSRF Token。
 - 不读取、不存储 Google OAuth Refresh Token 或任何云端凭证，零遥测上报。
 
 ---

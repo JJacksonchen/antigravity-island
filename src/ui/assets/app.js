@@ -16,6 +16,7 @@
       customSkinPh: "My Custom Skin",
       prefs: "Preferences",
       display: "Display",
+      pillStyle: "Pill Style",
       syncRate: "Sync Rate",
       language: "Language",
       alerts: "Low Alerts",
@@ -46,6 +47,7 @@
       customSkinPh: "自定义皮肤名称",
       prefs: "偏好设置",
       display: "显示形态",
+      pillStyle: "胶囊信息",
       syncRate: "刷新频率",
       language: "界面语言",
       alerts: "低额度提醒",
@@ -103,6 +105,7 @@
     $("input-skin-name").placeholder = t.customSkinPh;
     $("settings-title").textContent = t.prefs;
     $("lbl-mode").textContent = t.display;
+    $("lbl-density").textContent = t.pillStyle;
     $("lbl-poll").textContent = t.syncRate;
     $("lbl-lang").textContent = t.language;
     $("lbl-notify").textContent = t.alerts;
@@ -224,34 +227,103 @@
     return Math.round(actual - expected);
   }
 
-  function extractHighlights(snapshot) {
+  function formatShortTimer(isoString) {
+    if (!isoString) return "";
+    const targetMs = Date.parse(isoString);
+    if (!Number.isFinite(targetMs)) return "";
+    const diffSec = Math.floor((targetMs - Date.now()) / 1000);
+    if (diffSec <= 0) return "0m";
+    const days = Math.floor(diffSec / 86400);
+    const hours = Math.floor((diffSec % 86400) / 3600);
+    const mins = Math.floor((diffSec % 3600) / 60);
+    if (days > 0) return `${days}d`;
+    if (hours > 0) return `${hours}h${String(mins).padStart(2, "0")}m`;
+    return `${mins}m`;
+  }
+
+  function extractGlanceGroups(snapshot) {
     if (!snapshot) return [];
     const list = [];
     for (const g of snapshot.groups || []) {
-      let best = null;
-      for (const b of g.buckets || []) {
-        if (b.disabled || typeof b.remaining_fraction !== "number") continue;
-        const pct = Math.round(Math.max(0, Math.min(1, b.remaining_fraction)) * 100);
-        if (!best || pct < best.pct) {
-          best = {
-            code: g.accent_key === "gemini" ? "G" : g.accent_key === "claude" ? "C" : g.accent_key === "argon" ? "A" : "M",
-            accent_key: g.accent_key,
-            pct,
-          };
-        }
-      }
-      if (best) list.push(best);
+      const active = (g.buckets || []).filter(
+        (b) => !b.disabled && typeof b.remaining_fraction === "number"
+      );
+      if (active.length === 0) continue;
+
+      const pctOf = (b) => Math.round(Math.max(0, Math.min(1, b.remaining_fraction)) * 100);
+      const fiveH = active.find(
+        (b) => b.cadence?.kind === "five_hour" || b.cadence?.kind === "session"
+      );
+      const weekly = active.find((b) => b.cadence?.kind === "weekly");
+      const primary = fiveH || active[0];
+      const secondary = fiveH && weekly ? weekly : null;
+      const minPct = Math.min(...active.map(pctOf));
+
+      list.push({
+        code:
+          g.accent_key === "gemini"
+            ? "G"
+            : g.accent_key === "claude"
+            ? "C"
+            : g.accent_key === "argon"
+            ? "A"
+            : "M",
+        shortLabel: g.short_label || g.display_name,
+        accent_key: g.accent_key,
+        primaryPct: pctOf(primary),
+        primaryReset: primary.reset_time || null,
+        secondaryPct: secondary ? pctOf(secondary) : null,
+        minPct,
+      });
     }
     return list.slice(0, 3);
   }
 
-  function makePillChip(item) {
+  function makePillChip(item, density, isNotch) {
+    const color = healthColorForPercent(item.minPct) || accentVarFor(item.accent_key);
+    if (density === "compact") {
+      const chip = document.createElement("span");
+      chip.className = "pill-chip";
+      chip.innerHTML = `
+        <span class="pill-chip-code" style="color:${color}">${item.code}</span>
+        <span class="pill-chip-pct">${item.minPct}%</span>
+      `;
+      return chip;
+    }
+
+    const r = 7.2;
+    const c = 2 * Math.PI * r;
+    const dash = (c * item.primaryPct) / 100;
+    const timer = !isNotch ? formatShortTimer(item.primaryReset) : "";
+    const showSecondary =
+      item.secondaryPct !== null &&
+      (item.secondaryPct !== item.primaryPct || !timer);
+
+    let subHtml = "";
+    if (showSecondary && !isNotch) {
+      subHtml += `<span class="glance-sub-badge">7d ${item.secondaryPct}%</span>`;
+    } else if (showSecondary && isNotch) {
+      subHtml += `<span class="glance-sub-badge">${item.secondaryPct}%</span>`;
+    }
+    if (timer) {
+      subHtml += `<span class="pill-timer" data-short-reset="${escapeHtml(item.primaryReset || "")}">${timer}</span>`;
+    }
+
     const chip = document.createElement("span");
-    chip.className = "pill-chip";
-    const color = healthColorForPercent(item.pct) || accentVarFor(item.accent_key);
+    chip.className = "glance-chip";
     chip.innerHTML = `
-      <span class="pill-chip-code" style="color:${color}">${item.code}</span>
-      <span class="pill-chip-pct">${item.pct}%</span>
+      <span class="mini-ring" aria-hidden="true">
+        <svg width="19" height="19" viewBox="0 0 20 20">
+          <circle cx="10" cy="10" r="${r}" fill="none" stroke="var(--track-bg)" stroke-width="2.4"/>
+          <circle cx="10" cy="10" r="${r}" fill="none" stroke="${color}" stroke-width="2.4"
+            stroke-linecap="round" stroke-dasharray="${dash.toFixed(1)} ${c.toFixed(1)}"/>
+        </svg>
+      </span>
+      <span class="glance-text">
+        <span class="glance-code" style="color:${color}">${item.code}</span>
+        <span class="glance-pct">${item.primaryPct}%</span>
+        ${subHtml ? `<span class="glance-sub">${subHtml}</span>` : ""}
+      </span>
     `;
     return chip;
   }
@@ -361,7 +433,8 @@
 
     const stage = $("root");
     const mode = payload.config?.mode || "island";
-    stage.className = `stage mode-${mode}`;
+    const density = payload.config?.pill_density || "glance";
+    stage.className = `stage mode-${mode} density-${density}`;
     stage.dataset.expanded = expanded ? "true" : "false";
 
     const notchGap =
@@ -380,26 +453,38 @@
     $("btn-skins").classList.toggle("active", activeDrawer === "skins");
     $("btn-settings").classList.toggle("active", activeDrawer === "settings");
 
-    // Collapsed pill rendering
+    // Collapsed pill rendering (At-a-Glance on both macOS & Windows)
     const leftBox = $("pill-metrics-left");
     const rightBox = $("pill-metrics-right");
     leftBox.innerHTML = "";
     rightBox.innerHTML = "";
 
-    const highlights = extractHighlights(snap);
-    if (highlights.length === 0) {
+    const glanceGroups = extractGlanceGroups(snap);
+    const ambientFill = $("pill-ambient-fill");
+    if (glanceGroups.length === 0) {
+      ambientFill.style.width = "0%";
       const span = document.createElement("span");
       span.className = "pill-offline-label";
       span.textContent = sync.syncing ? langPack().syncingPill : langPack().offlinePill;
       leftBox.appendChild(span);
-    } else if (mode === "notch_hug") {
-      leftBox.appendChild(makePillChip(highlights[0]));
-      for (const h of highlights.slice(1)) {
-        rightBox.appendChild(makePillChip(h));
-      }
     } else {
-      for (const h of highlights) {
-        leftBox.appendChild(makePillChip(h));
+      const tightestPct = Math.min(...glanceGroups.map((g) => g.minPct));
+      ambientFill.style.width = `${tightestPct}%`;
+
+      if (mode === "notch_hug") {
+        leftBox.appendChild(makePillChip(glanceGroups[0], density, true));
+        for (const g of glanceGroups.slice(1)) {
+          rightBox.appendChild(makePillChip(g, density, true));
+        }
+      } else {
+        glanceGroups.forEach((g, idx) => {
+          if (idx > 0 && density === "glance") {
+            const sep = document.createElement("span");
+            sep.className = "pill-divider";
+            leftBox.appendChild(sep);
+          }
+          leftBox.appendChild(makePillChip(g, density, false));
+        });
       }
     }
 
@@ -513,9 +598,14 @@
 
     if (activeDrawer === "settings") {
       const cfg = payload.config || {};
+      const isMac = payload.platform === "macos";
+      $("btn-mode-notch").classList.toggle("hidden", !isMac);
       $("mode-selector")
         .querySelectorAll("button")
         .forEach((b) => b.classList.toggle("active", b.dataset.mode === cfg.mode));
+      $("density-selector")
+        .querySelectorAll("button")
+        .forEach((b) => b.classList.toggle("active", b.dataset.density === (cfg.pill_density || "glance")));
       $("poll-selector")
         .querySelectorAll("button")
         .forEach((b) => b.classList.toggle("active", Number(b.dataset.secs) === cfg.poll_interval_secs));
@@ -723,6 +813,10 @@
     const btn = e.target.closest("button[data-mode]");
     if (btn) post("set_mode", { mode: btn.dataset.mode });
   });
+  $("density-selector").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-density]");
+    if (btn) post("set_pill_density", { density: btn.dataset.density });
+  });
   $("poll-selector").addEventListener("click", (e) => {
     const btn = e.target.closest("button[data-secs]");
     if (btn) post("set_poll_interval", { secs: Number(btn.dataset.secs) });
@@ -738,15 +832,23 @@
     post("set_demo", { enabled: e.target.checked });
   });
 
-  // 1-second live countdown & sync age ticker
+  // 1-second live countdown & sync age ticker (both collapsed Glance Pill and expanded card)
   setInterval(() => {
-    if (!expanded || !payload?.status?.snapshot) return;
-    $("sync-age").textContent = formatSyncAge(payload.status.snapshot.fetched_at);
-    document.querySelectorAll(".reset-timer[data-reset]").forEach((el) => {
-      if (el.dataset.reset) {
-        el.textContent = formatCountdown(el.dataset.reset);
-      }
-    });
+    if (!payload?.status?.snapshot) return;
+    if (expanded) {
+      $("sync-age").textContent = formatSyncAge(payload.status.snapshot.fetched_at);
+      document.querySelectorAll(".reset-timer[data-reset]").forEach((el) => {
+        if (el.dataset.reset) {
+          el.textContent = formatCountdown(el.dataset.reset);
+        }
+      });
+    } else {
+      document.querySelectorAll(".pill-timer[data-short-reset]").forEach((el) => {
+        if (el.dataset.shortReset) {
+          el.textContent = formatShortTimer(el.dataset.shortReset);
+        }
+      });
+    }
   }, 1000);
 
   // Incoming state from Rust

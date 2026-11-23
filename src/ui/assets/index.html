@@ -11,7 +11,7 @@
 <body>
   <div id="root" class="stage mode-island" data-health="ok" data-expanded="false">
     <div id="island-shell" class="island-shell">
-      <!-- Collapsed Dynamic Island / Notch Pill -->
+      <!-- Collapsed Dynamic Island / Glance Pill -->
       <div id="pill-view" class="pill-view" role="button" tabindex="0" aria-label="Antigravity Quota Summary">
         <div class="pill-left">
           <span class="status-dot" id="pill-dot"></span>
@@ -28,6 +28,9 @@
         <div class="pill-right">
           <div id="pill-metrics-right" class="pill-metrics"></div>
           <span id="pill-sync-spin" class="sync-spin hidden" title="Syncing"></span>
+        </div>
+        <div class="pill-ambient-rail" aria-hidden="true">
+          <div id="pill-ambient-fill" class="pill-ambient-fill"></div>
         </div>
       </div>
 
@@ -152,15 +155,22 @@
         <section id="drawer-settings" class="drawer hidden">
           <div class="drawer-header">
             <span class="drawer-title" id="settings-title">Preferences</span>
-            <span class="version-tag">v0.1.0</span>
+            <span class="version-tag">v0.2.0</span>
           </div>
           <div class="studio-controls">
             <div class="control-row">
               <label id="lbl-mode">Display</label>
               <div class="segmented" id="mode-selector">
                 <button data-mode="island">Island</button>
-                <button data-mode="notch_hug">Notch</button>
+                <button data-mode="notch_hug" id="btn-mode-notch">Notch</button>
                 <button data-mode="widget">Widget</button>
+              </div>
+            </div>
+            <div class="control-row">
+              <label id="lbl-density">Pill Style</label>
+              <div class="segmented" id="density-selector">
+                <button data-density="glance">Glance</button>
+                <button data-density="compact">Compact</button>
               </div>
             </div>
             <div class="control-row">

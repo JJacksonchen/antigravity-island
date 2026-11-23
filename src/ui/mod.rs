@@ -1,4 +1,4 @@
-//! Desktop window host, WKWebView lifecycle, bidirectional IPC, and event loop controller.
+//! Desktop window host, WKWebView/WebView2 lifecycle, bidirectional IPC, and event loop controller.
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -12,7 +12,10 @@ use wry::WebViewBuilder;
 #[cfg(target_os = "macos")]
 use tao::platform::macos::{ActivationPolicy, EventLoopExtMacOS, WindowBuilderExtMacOS};
 
-use crate::config::{AppConfig, DisplayMode, Language};
+#[cfg(target_os = "windows")]
+use tao::platform::windows::WindowBuilderExtWindows;
+
+use crate::config::{AppConfig, DisplayMode, Language, PillDensity};
 use crate::platform::{self, ScreenMetrics};
 use crate::quota::sync::{spawn_sync_engine, SyncCommand};
 use crate::quota::SyncState;
@@ -42,6 +45,7 @@ enum IpcCommand {
     SetSkin { id: String },
     SaveSkin { skin: Box<SkinManifest> },
     SetMode { mode: DisplayMode },
+    SetPillDensity { density: PillDensity },
     SetPinned { pinned: bool },
     SetPollInterval { secs: u64 },
     SetLanguage { lang: Language },
@@ -52,6 +56,7 @@ enum IpcCommand {
 
 #[derive(Debug, Serialize)]
 struct UiPayload<'a> {
+    platform: &'static str,
     status: &'a SyncState,
     skin: &'a SkinManifest,
     all_skins: &'a [SkinManifest],
@@ -61,12 +66,18 @@ struct UiPayload<'a> {
     force_expanded: Option<bool>,
 }
 
-/// Launches the Dynamic Island / Floating Widget desktop experience + macOS menu bar tray.
+/// Launches the Dynamic Island / Floating Widget desktop experience + OS tray companion.
 pub fn run_app(mut config: AppConfig, demo_mode: bool) -> anyhow::Result<()> {
+    #[cfg(not(target_os = "macos"))]
+    if config.mode == DisplayMode::NotchHug {
+        config.mode = DisplayMode::Island;
+    }
+
     let mut registry = SkinRegistry::load_default();
     let _ = registry.ensure_initialized();
     registry.reload();
 
+    #[allow(unused_mut)]
     let mut event_loop = EventLoopBuilder::<AppEvent>::with_user_event().build();
 
     #[cfg(target_os = "macos")]
@@ -83,12 +94,11 @@ pub fn run_app(mut config: AppConfig, demo_mode: bool) -> anyhow::Result<()> {
     let mut tray = TrayController::new(&config, registry.list(), &sync_state)?;
 
     let screen = platform::primary_screen_metrics(None);
-    let init_w = if config.mode == DisplayMode::NotchHug {
-        340.0
-    } else {
-        264.0
+    let init_w = match config.mode {
+        DisplayMode::NotchHug => 380.0,
+        _ => 340.0,
     };
-    let init_h = 60.0;
+    let init_h = 64.0;
     let init_pos = compute_window_position(&config, screen, init_w, init_h);
 
     let builder = WindowBuilder::new()
@@ -107,8 +117,18 @@ pub fn run_app(mut config: AppConfig, demo_mode: bool) -> anyhow::Result<()> {
         .with_titlebar_transparent(true)
         .with_fullsize_content_view(true);
 
+    #[cfg(target_os = "windows")]
+    let builder = builder
+        .with_skip_taskbar(true)
+        .with_undecorated_shadow(false);
+
     let window = builder.build(&event_loop)?;
     platform::configure_window(&window, config.mode);
+
+    // Re-position using the actual monitor handle (important on Windows & Linux).
+    let actual_screen = platform::primary_screen_metrics(Some(&window));
+    let actual_pos = compute_window_position(&config, actual_screen, init_w, init_h);
+    window.set_outer_position(LogicalPosition::new(actual_pos.0, actual_pos.1));
 
     let html = INDEX_HTML
         .replace("/*__STYLE__*/", STYLE_CSS)
@@ -208,6 +228,21 @@ pub fn run_app(mut config: AppConfig, demo_mode: bool) -> anyhow::Result<()> {
                                     );
                                 }
                             }
+                            TrayAction::SetPillDensity(density) => {
+                                config.pill_density = density;
+                                let _ = config.save();
+                                tray.sync_state(&config, registry.list(), &sync_state);
+                                if ready {
+                                    push_ui_state(
+                                        &webview,
+                                        &window,
+                                        &sync_state,
+                                        &registry,
+                                        &config,
+                                        None,
+                                    );
+                                }
+                            }
                             TrayAction::SelectSkin(id) => {
                                 config.skin_id = id;
                                 let _ = config.save();
@@ -246,8 +281,8 @@ pub fn run_app(mut config: AppConfig, demo_mode: bool) -> anyhow::Result<()> {
                             push_ui_state(&webview, &window, &sync_state, &registry, &config, None);
                         }
                         IpcCommand::Resize { width, height } => {
-                            let w = width.clamp(120.0, 620.0);
-                            let h = height.clamp(44.0, 820.0);
+                            let w = width.clamp(120.0, 680.0);
+                            let h = height.clamp(46.0, 820.0);
                             current_size = (w, h);
                             window.set_inner_size(LogicalSize::new(w, h));
                             let screen = platform::primary_screen_metrics(Some(&window));
@@ -285,6 +320,12 @@ pub fn run_app(mut config: AppConfig, demo_mode: bool) -> anyhow::Result<()> {
                         }
                         IpcCommand::SetMode { mode } => {
                             apply_mode_change(&mut config, mode, &window, current_size);
+                            tray.sync_state(&config, registry.list(), &sync_state);
+                            push_ui_state(&webview, &window, &sync_state, &registry, &config, None);
+                        }
+                        IpcCommand::SetPillDensity { density } => {
+                            config.pill_density = density;
+                            let _ = config.save();
                             tray.sync_state(&config, registry.list(), &sync_state);
                             push_ui_state(&webview, &window, &sync_state, &registry, &config, None);
                         }
@@ -350,6 +391,13 @@ fn apply_mode_change(
     window: &tao::window::Window,
     current_size: (f64, f64),
 ) {
+    #[cfg(not(target_os = "macos"))]
+    let mode = if mode == DisplayMode::NotchHug {
+        DisplayMode::Island
+    } else {
+        mode
+    };
+
     config.mode = mode;
     platform::update_window_mode(window, mode);
     let screen = platform::primary_screen_metrics(Some(window));
@@ -404,6 +452,7 @@ fn push_ui_state(
     let active_skin = registry.resolve(&config.skin_id);
     let screen = platform::primary_screen_metrics(Some(window));
     let payload = UiPayload {
+        platform: std::env::consts::OS,
         status,
         skin: &active_skin,
         all_skins: registry.list(),

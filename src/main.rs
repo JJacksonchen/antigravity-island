@@ -1,3 +1,8 @@
+#![cfg_attr(
+    all(not(debug_assertions), target_os = "windows"),
+    windows_subsystem = "windows"
+)]
+
 //! CLI entry point for Antigravity Island: Dynamic Island GUI, live probe, skin listing,
 //! and Antigravity CLI `statusLine` pipe ingestion.
 
@@ -8,6 +13,7 @@ use chrono::Utc;
 use clap::{Parser, Subcommand, ValueEnum};
 
 use antigravity_island::config::{live_statusline_path, AppConfig, DisplayMode};
+use antigravity_island::platform;
 use antigravity_island::quota::client::QuotaClient;
 use antigravity_island::quota::demo;
 use antigravity_island::quota::parser::parse_statusline_json;
@@ -73,6 +79,8 @@ enum Commands {
 }
 
 fn main() -> Result<()> {
+    platform::attach_parent_console_if_cli();
+
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()

@@ -1,4 +1,5 @@
-//! Local Antigravity process, daemon metadata (`hub_*.json`), and loopback port discovery.
+//! Local Antigravity process, daemon metadata (`hub_*.json`), and loopback port discovery
+//! across macOS, Windows, and Linux.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -13,6 +14,9 @@ use tokio::process::Command;
 use super::SyncSource;
 
 const MAX_DAEMON_JSON_BYTES: u64 = 64 * 1024;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 /// Category of local Antigravity process hosting a Connect-RPC server.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -79,21 +83,9 @@ impl RpcEndpoint {
 }
 
 /// Discovers running Antigravity processes using both daemon metadata files (`hub_*.json`)
-/// and `ps -ax -o pid=,command=` process arguments.
+/// and live OS process listings (POSIX `ps` or Windows `Win32_Process` / `tasklist`).
 pub async fn discover_processes() -> Result<Vec<DiscoveredProcess>> {
-    let output = tokio::time::timeout(
-        Duration::from_secs(3),
-        Command::new("/bin/ps")
-            .args(["-ax", "-o", "pid=,command="])
-            .output(),
-    )
-    .await??;
-
-    if !output.status.success() {
-        return Ok(Vec::new());
-    }
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let alive_pids = parse_alive_pids(&stdout);
+    let (stdout, alive_pids) = capture_process_snapshot().await?;
 
     let mut merged: Vec<DiscoveredProcess> = Vec::new();
     let mut seen_pids: HashSet<u32> = HashSet::new();
@@ -124,13 +116,78 @@ pub async fn discover_processes() -> Result<Vec<DiscoveredProcess>> {
     Ok(merged)
 }
 
-/// Extracts all currently alive numeric PIDs from `ps -ax -o pid=,command=` stdout.
+#[cfg(not(target_os = "windows"))]
+async fn capture_process_snapshot() -> Result<(String, HashSet<u32>)> {
+    let output = tokio::time::timeout(
+        Duration::from_secs(3),
+        Command::new("/bin/ps")
+            .args(["-ax", "-o", "pid=,command="])
+            .output(),
+    )
+    .await??;
+
+    if !output.status.success() {
+        return Ok((String::new(), HashSet::new()));
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    let alive = parse_alive_pids(&stdout);
+    Ok((stdout, alive))
+}
+
+#[cfg(target_os = "windows")]
+async fn capture_process_snapshot() -> Result<(String, HashSet<u32>)> {
+    let ps_script = r#"Get-CimInstance Win32_Process | ForEach-Object { if ($_.CommandLine) { "$($_.ProcessId) $($_.CommandLine)" } else { "$($_.ProcessId) $($_.Name)" } }"#;
+    let mut cmd = Command::new("powershell.exe");
+    cmd.args(["-NoProfile", "-NonInteractive", "-Command", ps_script])
+        .creation_flags(CREATE_NO_WINDOW);
+
+    if let Ok(Ok(output)) = tokio::time::timeout(Duration::from_secs(4), cmd.output()).await {
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+            let alive = parse_alive_pids(&stdout);
+            if !alive.is_empty() {
+                return Ok((stdout, alive));
+            }
+        }
+    }
+
+    // Lightweight fallback via `tasklist /FO CSV /NH` so `hub_*.json` PID liveness still works.
+    let mut tl = Command::new("tasklist");
+    tl.args(["/FO", "CSV", "/NH"])
+        .creation_flags(CREATE_NO_WINDOW);
+    if let Ok(Ok(output)) = tokio::time::timeout(Duration::from_secs(3), tl.output()).await {
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            return Ok((String::new(), parse_windows_tasklist_pids(&stdout)));
+        }
+    }
+
+    Ok((String::new(), HashSet::new()))
+}
+
+/// Extracts all currently alive numeric PIDs from `<pid> <command>` lines.
 pub fn parse_alive_pids(stdout: &str) -> HashSet<u32> {
     stdout
         .lines()
         .filter_map(|line| split_pid_and_command(line.trim()))
         .filter_map(|(pid_str, _)| pid_str.parse::<u32>().ok())
         .collect()
+}
+
+/// Extracts alive PIDs from Windows `tasklist /FO CSV /NH` output (`"language_server.exe","46654",...`).
+pub fn parse_windows_tasklist_pids(stdout: &str) -> HashSet<u32> {
+    let mut pids = HashSet::new();
+    for line in stdout.lines() {
+        let mut fields = line.split(',');
+        let _name = fields.next();
+        if let Some(raw_pid) = fields.next() {
+            let cleaned = raw_pid.trim().trim_matches('"').trim();
+            if let Ok(pid) = cleaned.parse::<u32>() {
+                pids.insert(pid);
+            }
+        }
+    }
+    pids
 }
 
 /// Parses a single `hub_*.json` daemon metadata file.
@@ -206,27 +263,40 @@ pub fn discover_daemon_processes_in_dir(
     items.into_iter().map(|(_, p)| p).collect()
 }
 
-/// Discovers TCP listening ports owned by a specific PID via `lsof`.
+/// Discovers TCP listening ports owned by a specific PID (`lsof` on POSIX, `netstat` on Windows).
 pub async fn discover_listening_ports(pid: u32) -> Result<Vec<u16>> {
-    let pid_str = pid.to_string();
-    let lsof_bin = if std::path::Path::new("/usr/sbin/lsof").exists() {
-        "/usr/sbin/lsof"
-    } else {
-        "lsof"
-    };
-    let output = tokio::time::timeout(
-        Duration::from_secs(3),
-        Command::new(lsof_bin)
-            .args(["-nP", "-iTCP", "-sTCP:LISTEN", "-a", "-p", &pid_str])
-            .output(),
-    )
-    .await??;
+    #[cfg(not(target_os = "windows"))]
+    {
+        let pid_str = pid.to_string();
+        let lsof_bin = if std::path::Path::new("/usr/sbin/lsof").exists() {
+            "/usr/sbin/lsof"
+        } else {
+            "lsof"
+        };
+        let output = tokio::time::timeout(
+            Duration::from_secs(3),
+            Command::new(lsof_bin)
+                .args(["-nP", "-iTCP", "-sTCP:LISTEN", "-a", "-p", &pid_str])
+                .output(),
+        )
+        .await??;
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    Ok(parse_lsof_ports(&stdout))
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        Ok(parse_lsof_ports(&stdout))
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let mut cmd = Command::new("netstat");
+        cmd.args(["-ano", "-p", "TCP"])
+            .creation_flags(CREATE_NO_WINDOW);
+        let output = tokio::time::timeout(Duration::from_secs(3), cmd.output()).await??;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        Ok(parse_windows_netstat_ports(&stdout, pid))
+    }
 }
 
-/// Parses `ps -ax -o pid=,command=` output into prioritized Antigravity server candidates.
+/// Parses `<pid> <command>` lines into prioritized Antigravity server candidates.
 pub fn parse_ps_output(stdout: &str) -> Vec<DiscoveredProcess> {
     let mut found = Vec::new();
     for line in stdout.lines() {
@@ -301,6 +371,40 @@ pub fn parse_lsof_ports(stdout: &str) -> Vec<u16> {
         for cap in re.captures_iter(line) {
             if let Ok(port) = cap[1].parse::<u16>() {
                 if seen.insert(port) {
+                    ports.push(port);
+                }
+            }
+        }
+    }
+    ports
+}
+
+/// Parses TCP listening ports for a given PID from Windows `netstat -ano -p TCP` stdout.
+pub fn parse_windows_netstat_ports(stdout: &str, target_pid: u32) -> Vec<u16> {
+    let mut ports = Vec::new();
+    let mut seen = HashSet::new();
+
+    for line in stdout.lines() {
+        let cols: Vec<&str> = line.split_whitespace().collect();
+        if cols.len() < 5 {
+            continue;
+        }
+        if !cols[0].eq_ignore_ascii_case("TCP") {
+            continue;
+        }
+        let state = cols[3];
+        if !state.eq_ignore_ascii_case("LISTENING") {
+            continue;
+        }
+        let Ok(row_pid) = cols[4].parse::<u32>() else {
+            continue;
+        };
+        if row_pid != target_pid {
+            continue;
+        }
+        if let Some(port_str) = cols[1].rsplit(':').next() {
+            if let Ok(port) = port_str.parse::<u16>() {
+                if port > 0 && seen.insert(port) {
                     ports.push(port);
                 }
             }
@@ -396,7 +500,7 @@ pub fn build_candidate_endpoints(
     endpoints
 }
 
-/// Locates an installed `agy` CLI executable if present on the machine.
+/// Locates an installed `agy` CLI executable if present on macOS, Windows, or Linux.
 pub fn find_agy_binary() -> Option<PathBuf> {
     if let Ok(explicit) = std::env::var("ANTIGRAVITY_CLI_PATH") {
         let p = PathBuf::from(explicit.trim());
@@ -406,9 +510,15 @@ pub fn find_agy_binary() -> Option<PathBuf> {
         return None;
     }
 
+    let bin_name = if cfg!(target_os = "windows") {
+        "agy.exe"
+    } else {
+        "agy"
+    };
+
     if let Ok(path_var) = std::env::var("PATH") {
         for dir in std::env::split_paths(&path_var) {
-            let cand = dir.join("agy");
+            let cand = dir.join(bin_name);
             if cand.is_file() {
                 return Some(cand);
             }
@@ -417,12 +527,25 @@ pub fn find_agy_binary() -> Option<PathBuf> {
 
     let mut well_known = Vec::new();
     if let Some(home) = dirs::home_dir() {
-        well_known.push(home.join(".local/bin/agy"));
+        well_known.push(home.join(".gemini").join("bin").join(bin_name));
+        well_known.push(home.join(".local").join("bin").join(bin_name));
+        #[cfg(target_os = "macos")]
         well_known.push(home.join("Applications/Gemini.app/Contents/MacOS/agy"));
     }
-    well_known.push(PathBuf::from("/opt/homebrew/bin/agy"));
-    well_known.push(PathBuf::from("/usr/local/bin/agy"));
-    well_known.push(PathBuf::from("/Applications/Gemini.app/Contents/MacOS/agy"));
+
+    #[cfg(target_os = "windows")]
+    if let Ok(local_app) = std::env::var("LOCALAPPDATA") {
+        let base = PathBuf::from(local_app).join("Programs");
+        well_known.push(base.join("antigravity").join("agy.exe"));
+        well_known.push(base.join("Antigravity").join("agy.exe"));
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        well_known.push(PathBuf::from("/opt/homebrew/bin/agy"));
+        well_known.push(PathBuf::from("/usr/local/bin/agy"));
+        well_known.push(PathBuf::from("/Applications/Gemini.app/Contents/MacOS/agy"));
+    }
 
     well_known.into_iter().find(|p| p.is_file())
 }
@@ -456,7 +579,7 @@ pub fn classify_process_kind(command: &str) -> Option<ProcessKind> {
 fn is_language_server_cmd(lower: &str) -> bool {
     static LS_RE: OnceLock<Regex> = OnceLock::new();
     let re = LS_RE.get_or_init(|| {
-        Regex::new(r"(^|[/\\])language(?:_|-)server(?:[_-][a-z0-9]+)*(?:\.exe)?(\s|$)")
+        Regex::new(r#"(^|[/\\"])language(?:_|-)server(?:[_-][a-z0-9]+)*(?:\.exe)?(?:["'\s]|$)"#)
             .expect("valid language_server regex")
     });
     re.is_match(lower)
@@ -472,6 +595,7 @@ fn is_antigravity_marker(lower: &str) -> bool {
         || lower.contains("antigravity ide.app\\")
         || lower.contains("/antigravity/")
         || lower.contains("\\antigravity\\")
+        || lower.contains("\\programs\\antigravity\\")
 }
 
 fn is_antigravity_ide_marker(lower: &str) -> bool {
@@ -490,7 +614,7 @@ fn is_antigravity_ide_marker(lower: &str) -> bool {
 fn is_antigravity_cli_cmd(lower: &str) -> bool {
     static CLI_RE: OnceLock<Regex> = OnceLock::new();
     let re = CLI_RE.get_or_init(|| {
-        Regex::new(r"(^|[/\\])(?:antigravity-cli|antigravity_cli|agy)(?:\s|$)")
+        Regex::new(r#"(^|[/\\"])(?:antigravity-cli|antigravity_cli|agy)(?:\.exe)?(?:["'\s]|$)"#)
             .expect("valid cli regex")
     });
     re.is_match(lower)

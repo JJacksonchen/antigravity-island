@@ -1,12 +1,12 @@
 [package]
 name = "antigravity-island"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.91"
-description = "Lightweight Rust Dynamic Island & desktop quota widget for Google Antigravity with real-time sync and customizable hot-reloading skins"
+description = "Lightweight cross-platform Rust Dynamic Island & desktop quota widget for Google Antigravity (macOS & Windows) with at-a-glance gauges and hot-reloadable custom skins"
 license = "MIT"
 repository = "https://github.com/JJacksonchen/antigravity-island"
-keywords = ["antigravity", "dynamic-island", "quota", "macos", "desktop-widget"]
+keywords = ["antigravity", "dynamic-island", "quota", "macos", "windows"]
 categories = ["gui", "command-line-utilities"]
 
 [dependencies]
@@ -39,6 +39,13 @@ objc2-app-kit = { version = "0.3", features = [
     "NSView",
     "NSRunningApplication",
     "objc2-core-foundation",
+] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_Console",
+    "Win32_UI_WindowsAndMessaging",
 ] }
 
 [dev-dependencies]

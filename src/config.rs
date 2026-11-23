@@ -18,6 +18,17 @@ pub enum DisplayMode {
     Widget,
 }
 
+/// Collapsed pill information density.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PillDensity {
+    /// Rich at-a-glance pill showing visual rings/dual bars, 5h & 7d percentages, and reset countdown.
+    #[default]
+    Glance,
+    /// Minimal compact pill showing concise percentages.
+    Compact,
+}
+
 /// UI localization preference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -34,6 +45,7 @@ pub enum Language {
 pub struct AppConfig {
     pub skin_id: String,
     pub mode: DisplayMode,
+    pub pill_density: PillDensity,
     pub poll_interval_secs: u64,
     pub language: Language,
     pub warn_threshold: u8,
@@ -50,6 +62,7 @@ impl Default for AppConfig {
         Self {
             skin_id: "obsidian".to_string(),
             mode: DisplayMode::Island,
+            pill_density: PillDensity::Glance,
             poll_interval_secs: 15,
             language: Language::Auto,
             warn_threshold: 30,

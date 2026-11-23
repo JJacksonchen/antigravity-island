@@ -77,7 +77,11 @@ fn parses_nested_response_groups_and_sorts_five_hour_before_weekly() {
     assert_eq!(snap.groups[2].buckets[0].remaining_percent(), Some(91));
 
     assert_eq!(snap.min_remaining_percent(), Some(55));
-    assert_eq!(snap.tray_summary(), "G 55% · C 64%");
+    assert_eq!(snap.tray_summary(), "G 86%/55% · C 73%/64%");
+    let tip = snap.tray_tooltip(Utc::now());
+    assert!(tip.contains("Gemini: 5h 86%"));
+    assert!(tip.contains("7d 55%"));
+    assert!(tip.contains("Claude/GPT: 5h 73%"));
 }
 
 #[test]

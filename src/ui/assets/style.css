@@ -19,8 +19,8 @@
   --border-width: 1px;
   --blur-px: 20px;
   --glow-alpha: 0.45;
-  --font-main: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'PingFang SC', sans-serif;
-  --font-mono: 'SF Mono', ui-monospace, Menlo, monospace;
+  --font-main: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI Variable', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei UI', sans-serif;
+  --font-mono: 'SF Mono', 'Cascadia Mono', ui-monospace, Menlo, Consolas, monospace;
   --notch-gap: 0px;
   --health-color: var(--ok-color);
 }
@@ -101,21 +101,48 @@ html, body {
   display: none !important;
 }
 
-/* ---------- Collapsed Pill ---------- */
+/* ---------- Collapsed Pill (At-a-Glance Dual-Platform) ---------- */
 .pill-view {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  height: 34px;
-  padding: 0 12px;
+  height: 38px;
+  padding: 0 13px 2px;
   cursor: pointer;
   white-space: nowrap;
 }
 
+.stage.density-compact .pill-view {
+  height: 34px;
+  padding: 0 12px 1px;
+}
+
 .stage.mode-notch_hug .pill-view {
-  height: 32px;
-  padding: 0 12px;
+  height: 34px;
+  padding: 0 12px 1px;
+}
+
+.pill-ambient-rail {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 2px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--track-bg);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.pill-ambient-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: var(--health-color);
+  box-shadow: 0 0 8px var(--health-color);
+  transition: width 360ms cubic-bezier(0.22, 1, 0.36, 1), background 220ms ease;
 }
 
 .pill-left, .pill-right {
@@ -159,6 +186,74 @@ html, body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.pill-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  opacity: 0.7;
+  margin: 0 1px;
+}
+
+.glance-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px 2px 3px;
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.mini-ring {
+  width: 19px;
+  height: 19px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mini-ring svg {
+  transform: rotate(-90deg);
+}
+
+.glance-text {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.glance-code {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.glance-pct {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.glance-sub {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.glance-sub-badge {
+  padding: 0.5px 4px;
+  border-radius: 5px;
+  background: var(--track-bg);
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
 .pill-chip {

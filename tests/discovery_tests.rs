@@ -2,7 +2,8 @@ use std::collections::HashSet;
 
 use antigravity_island::quota::discovery::{
     build_candidate_endpoints, discover_daemon_processes_in_dir, parse_alive_pids,
-    parse_daemon_json, parse_lsof_ports, parse_ps_output, ProcessKind,
+    parse_daemon_json, parse_lsof_ports, parse_ps_output, parse_windows_netstat_ports,
+    parse_windows_tasklist_pids, ProcessKind,
 };
 
 #[test]
@@ -124,4 +125,36 @@ fn parses_daemon_json_and_filters_stale_pids() {
     assert_eq!(eps[0].port, 54008);
     assert_eq!(eps[1].scheme, "http");
     assert_eq!(eps[1].port, 54007);
+}
+
+#[test]
+fn parses_windows_processes_tasklist_and_netstat_ports() {
+    let win_ps = r#"
+ 2048 "C:\Users\dev\AppData\Local\Programs\Antigravity\resources\bin\language_server_windows_x64.exe" --app_data_dir antigravity --csrf_token=win-secret --https_server_port=54010
+ 3072 "C:\Users\dev\.gemini\bin\agy.exe"
+"#;
+    let procs = parse_ps_output(win_ps);
+    assert_eq!(procs.len(), 2);
+    assert_eq!(procs[0].pid, 2048);
+    assert_eq!(procs[0].kind, ProcessKind::App);
+    assert_eq!(procs[0].csrf_token, "win-secret");
+    assert_eq!(procs[0].hint_ports, vec![54010]);
+    assert_eq!(procs[1].pid, 3072);
+    assert_eq!(procs[1].kind, ProcessKind::Cli);
+
+    let tasklist = r#""language_server.exe","2048","Console","1","120,000 K"
+"agy.exe","3072","Console","1","45,000 K"
+"#;
+    let pids = parse_windows_tasklist_pids(tasklist);
+    assert!(pids.contains(&2048));
+    assert!(pids.contains(&3072));
+
+    let netstat = "\
+  TCP    127.0.0.1:54010        0.0.0.0:0              LISTENING       2048
+  TCP    [::1]:54011            [::]:0                 LISTENING       2048
+  TCP    127.0.0.1:54010        127.0.0.1:61200        ESTABLISHED     2048
+  TCP    127.0.0.1:9999         0.0.0.0:0              LISTENING       8888
+";
+    let ports = parse_windows_netstat_ports(netstat, 2048);
+    assert_eq!(ports, vec![54010, 54011]);
 }

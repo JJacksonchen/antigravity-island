@@ -1,4 +1,4 @@
-use antigravity_island::config::{AppConfig, DisplayMode, Language};
+use antigravity_island::config::{AppConfig, DisplayMode, Language, PillDensity};
 use antigravity_island::skin::{GaugeStyle, SkinRegistry};
 
 #[test]
@@ -72,6 +72,7 @@ fn app_config_roundtrip_and_sanitization() {
     let cfg = AppConfig {
         skin_id: "cyber-neon".to_string(),
         mode: DisplayMode::NotchHug,
+        pill_density: PillDensity::Compact,
         poll_interval_secs: 1, // clamped to 5
         language: Language::Zh,
         warn_threshold: 25,
@@ -87,6 +88,7 @@ fn app_config_roundtrip_and_sanitization() {
     let loaded = AppConfig::load_from_path(&cfg_path);
     assert_eq!(loaded.skin_id, "cyber-neon");
     assert_eq!(loaded.mode, DisplayMode::NotchHug);
+    assert_eq!(loaded.pill_density, PillDensity::Compact);
     assert_eq!(loaded.poll_interval_secs, 5);
     assert_eq!(loaded.language, Language::Zh);
     assert_eq!(loaded.warn_threshold, 25);
