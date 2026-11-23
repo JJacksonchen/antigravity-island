@@ -213,8 +213,12 @@ if [[ -n "$APP_BUNDLE_PATH" ]]; then
 fi
 
 if [[ "$OS" == "Darwin" && "$NO_LAUNCH" -eq 0 && -n "$APP_BUNDLE_PATH" ]]; then
-  pkill -x antigravity-island >/dev/null 2>&1 || true
-  sleep 0.3
-  open "$APP_BUNDLE_PATH"
-  ok "Launched Antigravity Island"
+  if [[ "$AUTOSTART" -eq 1 ]]; then
+    ok "Antigravity Island started via LaunchAgent"
+  else
+    pkill -x antigravity-island >/dev/null 2>&1 || true
+    sleep 0.3
+    open "$APP_BUNDLE_PATH"
+    ok "Launched Antigravity Island"
+  fi
 fi
